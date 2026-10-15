@@ -110,6 +110,15 @@ def _protected_reason(p: Path) -> str | None:
         return "the root folder"
     if _is_within(VOID_ROOT, Path(os.path.normpath(p))):
         return "a folder that contains Void OS itself"
+    try:
+        app_rel = Path(os.path.normpath(APP_DATA_DIR)).relative_to(FILE_ROOT).parts
+    except ValueError:
+        app_rel = None
+    if app_rel:
+        if parts == app_rel:
+            return "the App data folder"
+        if len(parts) == len(app_rel) + 1 and parts[:len(app_rel)] == app_rel:
+            return "an installed app's data folder: uninstall the app from the App Store instead"
     legacy_home = ("home",) if (SHARED_PARTS[0] == "home" or USERS_PARTS[0] == "home") else None
     if parts in (SHARED_PARTS, USERS_PARTS, DRIVES_PARTS, (TRASH_DIRNAME,)) or (legacy_home and parts == legacy_home):
         return f"the {parts[-1]} folder"
@@ -183,9 +192,13 @@ def _safe(raw: str, user: dict | None = None) -> Path:
     # as any other container data directory — this keeps it out of
     # /api/files scope entirely, deliberately, not as a side effect of the
     # two paths now living next to each other on disk.
+    # The one exception is the Super User, who owns the whole server: they may open the App data folder
+    # (to inspect, back up or fix an app's files). The structural folders in it stay protected from
+    # rename / move / delete (see _protected_reason), and nobody else, admins included, gets in.
     try:
         candidate.relative_to(APP_DATA_DIR)
-        raise PermissionError("Access denied")
+        if not (user and user.get("role") == "superuser"):
+            raise PermissionError("Access denied")
     except ValueError:
         pass
     if _is_void_internal(candidate):

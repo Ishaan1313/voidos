@@ -885,6 +885,7 @@ Super User, created during setup.
 |---|---|---|---|
 | Dashboard, Recycle Bin, search, WebDAV, share links, own cloud accounts | ✓ | ✓ | ✓ (own scope) |
 | Files | everything | everything by default¹ | Shared + own folder |
+| Files → App data (the App Store apps' own data folders) | ✓ | ✗ | ✗ |
 | App Store, Containers | ✓ | ✓ by default¹ | ✗ |
 | App tiles: add, edit, remove, hide from Guests | ✓ | ✓ | view only |
 | Hide a tile from Admins | ✓ | ✗ (can't see or change tiles hidden from them) | ✗ |

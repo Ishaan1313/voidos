@@ -3140,6 +3140,7 @@ function _placesHtml(pl){
       :`<div class="fs-hint">No drives connected.<br><a href="#" data-go="settings">Add a drive or network share</a></div>`;
     h+=`<div class="fs-title" style="margin-top:10px">Advanced</div>`;
     h+=_placeItem(pl.root.path,'server','Server files');
+    if(pl.app_data)h+=_placeItem(pl.app_data.path,'server','App data');   // Super User only
   }
   return h;
 }

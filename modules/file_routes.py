@@ -20,7 +20,7 @@ import time
 import uuid
 import zipfile
 from modules.config import (
-    DRIVES_REL, EXTERNAL_DIR, FILE_ROOT, GUEST_QUOTA_MB, SHARED_REL, UPLOAD_SESSION_TTL_S, USERS_REL,
+    APP_DATA_DIR, DRIVES_REL, EXTERNAL_DIR, FILE_ROOT, GUEST_QUOTA_MB, SHARED_REL, UPLOAD_SESSION_TTL_S, USERS_REL,
 )
 from modules.limits import guarded_send
 from modules.error_log import _api_error, _current_user, _err, _has_full_file_access, _log_exception
@@ -61,6 +61,11 @@ def api_files_places():
     if full:
         out["users"] = {"name": "Users", "path": USERS_REL}
         out["root"] = {"name": "Server files", "path": ""}
+        if user.get("role") == "superuser":
+            try:      # only reachable through the Files app when it sits inside the files folder
+                out["app_data"] = {"name": "App data", "path": APP_DATA_DIR.relative_to(FILE_ROOT).as_posix()}                     if APP_DATA_DIR.is_dir() else None
+            except ValueError:
+                out["app_data"] = None
         drives = []
         try:
             for d in sorted(EXTERNAL_DIR.iterdir(), key=lambda x: x.name.lower()):
