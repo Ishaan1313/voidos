@@ -893,7 +893,7 @@ async function notifRefresh(){
 // The clock's easter egg: the video plays inside Void OS (a popup with an embedded player), and a
 // plain-text notification follows a little later.
 function rickroll(){
-  // No title, and no way to close it for the first five seconds (X, Escape and the button are all held back),
+  // No title, and no way to close it for the first eight seconds (X, Escape and the button are all held back),
   // so the video has a chance to load before anyone dismisses it.
   openMdl('',
     // Nothing of the player's own UI is reachable: controls off, keyboard off, a transparent shield over the
@@ -909,13 +909,14 @@ function rickroll(){
   if(m)m.classList.add('rick');
   if(x)x.style.visibility='hidden';
   if(f)f.style.visibility='hidden';
-  App.mdlLockUntil=Date.now()+5000;
+  const HOLD=8000;                      // how long the popup can't be closed
+  App.mdlLockUntil=Date.now()+HOLD;
   setTimeout(()=>{
     App.mdlLockUntil=0;
     if(x)x.style.visibility='';if(f)f.style.visibility='';
     if(m)m.classList.remove('rick');
     api('/api/easter/rickroll',{method:'POST'}).catch(()=>{});
-  },5000);
+  },HOLD);
 }
 function notifIncoming(item){
   if(_notifs.some(n=>n.id===item.id))return;
