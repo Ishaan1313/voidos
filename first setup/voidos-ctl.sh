@@ -4,7 +4,7 @@
 VOIDOS_DIR="__VOIDOS_DIR__"
 SERVICE="__SERVICE__"
 
-if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; G=$'\e[32m'; R=$'\e[31m'; C=$'\e[36m'; N=$'\e[0m'; else B=""; D=""; G=""; R=""; C=""; N=""; fi
+if [[ -t 1 ]]; then B=$'\e[1m'; D=$'\e[2m'; G=$'\e[32m'; R=$'\e[31m'; C=$'\e[36m'; Y=$'\e[33m'; N=$'\e[0m'; else B=""; D=""; G=""; R=""; C=""; Y=""; N=""; fi
 OS="$(uname -s)"
 VPY="$VOIDOS_DIR/.venv/bin/python"
 [[ -x $VPY ]] || VPY="$(command -v python3 || command -v python)"
@@ -20,6 +20,38 @@ journal() {
 port() {
   local p; p=$(grep -E '^[[:space:]]*VOID_PORT[[:space:]]*=' "$VOIDOS_DIR/.env" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*#.*$//')
   echo "${p:-7777}"
+}
+# Tidy up what the server prints: drop journald's "Oct 15 16:42:00 host python[123]:" prefix down to the
+# time, line the messages up in one column, colour warnings / errors / tracebacks, dim the systemd notes.
+# `voidos logs --raw` shows the untouched journal instead.
+pretty() {
+  awk -v B="$B" -v D="$D" -v G="$G" -v R="$R" -v Y="$Y" -v C="$C" -v N="$N" '
+  function out(ts, msg, kind,   col, pre) {
+    col = ""
+    if (kind == "sys") col = D
+    else if (msg ~ /^\[[^]]*\] x /  || msg ~ /^x /  || msg ~ /^Traceback/ || msg ~ /^[A-Za-z_.]+(Error|Exception|Exit)(:|$)/) col = R
+    else if (msg ~ /^\[[^]]*\] ! / || msg ~ /^! /) col = Y
+    else if (msg ~ /^\[[^]]*\] \+ / || msg ~ /^\+ /) col = G
+    else if (msg ~ /^ +File "/ || msg ~ /^ +[~^]+ *$/) col = D
+    pre = (ts != "") ? D ts N "  " : ""
+    print pre col msg (col != "" ? N : "")
+    fflush()
+  }
+  {
+    line = $0; ts = ""; kind = ""
+    if (match(line, /^[A-Z][a-z][a-z] +[0-9]+ [0-9][0-9]:[0-9][0-9]:[0-9][0-9] [^ ]+ [^ ]+: /)) {
+      hdr = substr(line, 1, RLENGTH); line = substr(line, RLENGTH + 1)
+      split(hdr, a, " "); ts = a[3]
+      if (a[5] ~ /^(systemd|systemd\[)/) { kind = "sys"; line = "systemd: " line }
+      orig = line
+      sub(/^  /, "", line)                       # the server indents everything by two spaces
+      if (intb && orig ~ /^ /) line = orig       # but a traceback keeps its own indentation
+    } else if (line ~ /^-- /) { print D line N; fflush(); next }
+    if (ts == "" && kind == "") sub(/^  /, "", line)
+    if (line ~ /^Traceback/) intb = 1
+    else if (intb && line !~ /^ /) { out(ts, line, kind); intb = 0; next }
+    out(ts, line, kind)
+  }'
 }
 up() { curl -fsS --max-time 2 "http://127.0.0.1:$(port)/api/health" >/dev/null 2>&1; }
 
@@ -68,6 +100,7 @@ ${B}voidos${N} — control the Void OS server
   voidos logs             last 100 lines, then follow live (Ctrl+C to leave)
   voidos logs 500         the last 500 lines and exit
   voidos logs --since "1 hour ago"
+  voidos logs --raw       the untouched journal (add a number or --since after it)
   voidos enable|disable   start automatically at boot, or not
   voidos config           edit the settings file (.env)
   voidos url              the addresses to open it at
@@ -86,13 +119,15 @@ case "${1:-help}" in
     if up; then echo "${G}${B}Void OS is running${N}"; urls; else echo "${R}${B}Void OS is not answering${N}  ${D}(voidos start, or voidos logs)${N}"; exit 3; fi ;;
   logs)
     shift || true
+    FILTER=pretty
+    if [[ ${1:-} == --raw ]]; then FILTER=cat; shift; fi
     if have_systemd; then
-      if [[ $# -eq 0 ]]; then journal -u "$SERVICE" -n 100 -f --no-pager
-      elif [[ $1 =~ ^[0-9]+$ ]]; then journal -u "$SERVICE" -n "$1" --no-pager
-      else journal -u "$SERVICE" --no-pager "$@"; fi
+      if [[ $# -eq 0 ]]; then journal -u "$SERVICE" -n 100 -f --no-pager | $FILTER
+      elif [[ $1 =~ ^[0-9]+$ ]]; then journal -u "$SERVICE" -n "$1" --no-pager | $FILTER
+      else journal -u "$SERVICE" --no-pager "$@" | $FILTER; fi
     else
       [[ -f $LOGFILE ]] || { echo "No log yet ($LOGFILE)."; exit 1; }
-      if [[ $# -eq 0 ]]; then tail -n 100 -f "$LOGFILE"; elif [[ $1 =~ ^[0-9]+$ ]]; then tail -n "$1" "$LOGFILE"; else tail -n 100 -f "$LOGFILE"; fi
+      if [[ $# -eq 0 ]]; then tail -n 100 -f "$LOGFILE" | $FILTER; elif [[ $1 =~ ^[0-9]+$ ]]; then tail -n "$1" "$LOGFILE" | $FILTER; else tail -n 100 -f "$LOGFILE" | $FILTER; fi
     fi ;;
   enable)
     if have_systemd; then as_root systemctl enable "$SERVICE" && echo "Void OS will start at boot."
