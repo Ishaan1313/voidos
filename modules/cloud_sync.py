@@ -121,7 +121,9 @@ def rclone_version() -> tuple:
 
 
 def run_bisync(remote_name: str, remote_vars: dict, remote_path: str, local_path: Path,
-                resync: bool = False, timeout_s: int = 1800, provider: str = "") -> tuple[bool, str]:
+                resync: bool = False, timeout_s: int = 0, provider: str = "") -> tuple[bool, str]:
+    if not timeout_s:                  # the first full download of an account may take hours
+        timeout_s = 12 * 3600 if resync else 1800
     local_path.mkdir(parents=True, exist_ok=True)
     # A path that rclone may create/write during the run (it saves refreshed
     # tokens there) — deleted afterwards so no token is ever left at rest.
@@ -133,7 +135,9 @@ def run_bisync(remote_name: str, remote_vars: dict, remote_path: str, local_path
            "--config", str(conf_path),
            "--conflict-resolve", "newer",
            "--conflict-loser", "num",  # keep both sides of a genuine conflict rather than silently dropping one
-           "--fast-list", "--checkers", "8", "--transfers", "4",   # a whole account is a lot of listing
+           # a whole account is a lot of listing; the first download gets more parallel transfers
+           # (Dropbox's pacer slows rclone down by itself if it is asked to go too fast)
+           "--fast-list", "--checkers", "16" if resync else "8", "--transfers", "8" if resync else "4",
            "-v"]
     if provider == "dropbox":
         cmd += ["--dropbox-batch-mode", "sync"]       # many small files go up in batches

@@ -430,6 +430,36 @@ def api_rclone_check():
                "Continuous sync isn't available on this server — ask an Admin to install rclone")
     return jsonify({"ok": ok, "message": msg})
 
+_progress_cache: dict[str, tuple[float, dict]] = {}   # pair_id -> (computed_at, {"local","total"})
+
+def _first_sync_progress(pair: dict, user_id: str) -> dict | None:
+    """Rough progress of the first full download: bytes now in the local folder against the bytes
+    the account holds (Dropbox reports that; other providers don't, so only the local size is given).
+    Cached for a few seconds because the page asks every 3 s and the folder can be large."""
+    now = time.time()
+    hit = _progress_cache.get(pair["id"])
+    if hit and now - hit[0] < 8:
+        return hit[1]
+    local = 0
+    try:
+        for root, _dirs, files in os.walk(FILE_ROOT / pair["local_path"]):
+            for f in files:
+                try:
+                    local += os.path.getsize(os.path.join(root, f))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    total = None
+    if pair.get("provider") == "dropbox":
+        try:
+            total = cloud_sync.dbx_space(_sync_access_token(pair))["used"] or None
+        except Exception:
+            total = hit[1].get("total") if hit else None
+    out = {"local": local, "total": total}
+    _progress_cache[pair["id"]] = (now, out)
+    return out
+
 @app.route("/api/cloud/<provider>/sync", methods=["GET"])
 @require_auth
 def api_cloud_sync_list(provider):
@@ -439,7 +469,9 @@ def api_cloud_sync_list(provider):
     for p in pairs:
         st = _sync_status.get(p["id"], {})
         sup = _sync_supervisors.get(p["id"])
-        out.append({"id": p["id"], "local_path": p["local_path"], "remote_path": p.get("remote_path", ""),
+        prog = _first_sync_progress(p, user["id"]) if (p.get("entire") and not p.get("resynced")
+                                                       and p.get("enabled")) else None
+        out.append({"id": p["id"], "progress": prog, "local_path": p["local_path"], "remote_path": p.get("remote_path", ""),
                      "interval_s": p.get("interval_s", 900), "enabled": p.get("enabled", False),
                      "resynced": p.get("resynced", False), "last_result": st,
                      "live": bool(p.get("live")), "entire": bool(p.get("entire")),

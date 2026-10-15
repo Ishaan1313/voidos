@@ -1631,6 +1631,28 @@ window.addEventListener('DOMContentLoaded',applyUiMode);
 if(document.readyState!=='loading')applyUiMode();
 
 // ── Cloud Storage (Dropbox / Google Drive) ───────────────────────────────
+// Which synced cloud folders are mid-sync right now (local path). Painted onto the sidebar tile and the
+// folder icon in file lists; refreshed every 3 s while anything is syncing and every 12 s otherwise.
+const CLOUD_SYNCING=new Set();let _cloudSyncTimer=null,_cloudSyncKnown=false;
+function cloudSyncPaint(){
+  document.querySelectorAll('.fitem[data-type="dir"]').forEach(el=>el.classList.toggle('syncing',CLOUD_SYNCING.has(el.dataset.path)));
+  document.querySelectorAll('[data-cloud]').forEach(el=>el.classList.toggle('syncing',el.dataset.syncPath!==undefined&&CLOUD_SYNCING.has(el.dataset.syncPath)));
+}
+async function cloudSyncPoll(){
+  clearTimeout(_cloudSyncTimer);
+  try{
+    const next=new Set();
+    const provs=(await apiData('/api/cloud/providers')).filter(p=>p.connected);
+    await Promise.all(provs.map(async p=>{
+      try{(await apiData(`/api/cloud/${p.id}/sync`)).forEach(x=>{if(x.enabled&&x.entire&&x.state==='syncing')next.add(x.local_path)})}catch(e){}
+    }));
+    CLOUD_SYNCING.clear();next.forEach(x=>CLOUD_SYNCING.add(x));
+    _cloudSyncKnown=provs.length>0;cloudSyncPaint();
+  }catch(e){}
+  if(_cloudSyncKnown||document.getElementById('fsCloudSection'))
+    _cloudSyncTimer=setTimeout(cloudSyncPoll,CLOUD_SYNCING.size?3000:12000);
+}
+window.cloudSyncPoll=cloudSyncPoll;
 async function loadCloudProviders(){
   const el=document.getElementById('cloudProvidersList');if(!el)return;
   try{
@@ -1675,14 +1697,17 @@ async function loadCloudSyncPairs(provider){
     else el.innerHTML=pairs.map(p=>{
       const r=p.last_result||{};
       let txt,col='var(--td)';
-      if(p.state==='syncing')txt=r.at?'Syncing\u2026':'First sync in progress \u2014 downloading everything can take a while\u2026';
+      const pg=p.progress,mb=n=>n>=1073741824?(n/1073741824).toFixed(1)+' GB':n>=1048576?(n/1048576).toFixed(0)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+      const pgTxt=pg?(pg.total?` \u2014 ${mb(pg.local)} of ${mb(pg.total)} (${Math.min(99,Math.round(pg.local/pg.total*100))}%)`:` \u2014 ${mb(pg.local)} downloaded so far`):'';
+      if(p.state==='syncing')txt=r.at&&!pg?'Syncing\u2026':'First sync in progress'+pgTxt+(pgTxt?'':' \u2014 downloading everything can take a while\u2026');
       else if(!r.at)txt='Waiting for the first sync\u2026';
       else if(r.ok)txt='Up to date \u00b7 last synced '+new Date(r.at*1000).toLocaleTimeString();
       else{txt='Problem \u2014 '+(r.message||'').slice(0,120);col='var(--rd)'}
       const live=p.live?`<span class="srv-tag" title="${p.watching?'Changes on this server sync within seconds':'Syncs every few minutes'}">${p.watching?'Live':'Timed'}</span>`:'';
       return `<div class="srow" style="padding:8px 0">
         <div><div class="slabel" style="font-size:12.5px">${p.entire?`Your whole ${esc(provider==='dropbox'?'Dropbox':'Google Drive')}`:esc(p.remote_path||'/')} \u2194 ${esc(p.local_path)} ${live}</div>
-          <div class="sdesc" style="color:${col}">${esc(txt)}</div></div>
+          <div class="sdesc" style="color:${col}">${esc(txt)}</div>
+          ${pg&&pg.total&&p.state==='syncing'?`<div style="height:5px;border-radius:3px;background:rgba(var(--ov-rgb),.12);margin-top:6px;max-width:320px;overflow:hidden"><div style="height:100%;width:${Math.min(99,Math.round(pg.local/pg.total*100))}%;background:var(--pu);transition:width .6s"></div></div>`:''}</div>
         <button class="btn btn-d btn-sm" onclick="deleteCloudSync('${provider}','${p.id}')">Stop</button>
       </div>`;
     }).join('');
@@ -3177,8 +3202,9 @@ async function initFilesSidebar(path){
     cloudEl.querySelectorAll('[data-cloud]').forEach(el=>{
       const p=configured.find(x=>x.id===el.dataset.cloud);
       el.onclick=()=>synced[p.id]?rFiles(synced[p.id]):p.connected?go('settings'):connectCloud(p.id);
-      if(synced[p.id]&&(path===synced[p.id]||path.startsWith(synced[p.id]+'/')))el.classList.add('active');
+      if(synced[p.id]){el.dataset.syncPath=synced[p.id];if(path===synced[p.id]||path.startsWith(synced[p.id]+'/'))el.classList.add('active')}
     });
+    cloudSyncPaint();cloudSyncPoll();
   }catch(e){}
   const usage=document.getElementById('fsUsage');
   if(usage)try{
@@ -3192,7 +3218,7 @@ async function initFilesSidebar(path){
   }catch(e){}
 }
 function fchip(e,i){
-  return `<div class="fitem" data-path="${escA(e.path)}" data-type="${e.type}" data-name="${escA(e.name)}"${e.protected?' data-prot="1"':' draggable="true"'}${i!=null?` style="--i:${Math.min(i,26)}"`:''}>
+  return `<div class="fitem${e.type==='dir'&&CLOUD_SYNCING.has(e.path)?' syncing':''}" data-path="${escA(e.path)}" data-type="${e.type}" data-name="${escA(e.name)}"${e.protected?' data-prot="1"':' draggable="true"'}${i!=null?` style="--i:${Math.min(i,26)}"`:''}>
     ${fileIconHtml(e)}
     <div class="fname" title="${escA(e.name)}">${esc(e.name)}</div>
     ${e.size!=null?`<div class="fsize">${fmtB(e.size)}</div>`:'<div class="fsize"></div>'}
@@ -3579,7 +3605,7 @@ async function doFileSearch(q,scopePath){
   }catch(e){grid.innerHTML=`<div class="empty-dir">Search failed: ${esc(e.message)}</div>`}
 }
 function searchResultChip(e){
-  return `<div class="fitem" data-path="${escA(e.path)}" data-type="${e.type}" data-name="${escA(e.name)}"
+  return `<div class="fitem${e.type==='dir'&&CLOUD_SYNCING.has(e.path)?' syncing':''}" data-path="${escA(e.path)}" data-type="${e.type}" data-name="${escA(e.name)}"
       style="grid-column:1/-1;display:flex;align-items:center;gap:10px;text-align:left;padding:9px 10px">
     ${fileIconHtml(e,20)}
     <div style="flex:1;min-width:0">
