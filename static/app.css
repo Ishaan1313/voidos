@@ -1715,9 +1715,12 @@ code,pre,kbd,.path,.toast-ref,.notif-time code,.ip-spoiler-text,.mono{font-famil
 .ix-empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:48px 16px;text-align:center;
   border:1px dashed var(--bd);border-radius:20px}
 .ix-empty-ico{font-size:38px}.ix-empty-t{font-family:var(--f-display);font-weight:650;font-size:17px}
-.ix-dock{position:fixed;left:var(--sb,72px);right:0;bottom:0;z-index:300;display:flex;align-items:center;justify-content:space-between;gap:18px;
+.ix-dock{position:fixed;left:var(--sb,72px);right:0;bottom:0;z-index:40;display:flex;align-items:center;justify-content:space-between;gap:18px;
   padding:14px 26px;background:var(--sf2);border-top:1px solid var(--bd2);box-shadow:0 -12px 40px rgba(0,0,0,.28)}
 .shell.hs .ix-dock{left:0}
+.shell:has(> .sidebar.open) .ix-dock{left:216px}          /* sidebar pinned open: the dock starts after it */
+.shell.hs:has(> .sidebar.open) .ix-dock{left:0}
+@media(max-width:768px){.ix-dock,.shell:has(> .sidebar.open) .ix-dock{left:0}}   /* phones: the sidebar is a slide-in drawer */
 .ix-dock-l{min-width:0;flex:1}
 .ix-dock-t{font-family:var(--f-display);font-weight:650;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ix-dock-s{font-size:12.5px;color:var(--td);margin-top:2px}
