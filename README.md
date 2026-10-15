@@ -1073,9 +1073,11 @@ chunked uploads, App Store installs and public share downloads per minute.
 Void OS updates from the **GitHub releases** of its repository. Update checks are
 **on by default**.
 
-**For whoever publishes Void OS:** put the new number in `VERSION` and commit,
-then create a GitHub release whose tag is that version (`v1.2.0` or `1.2.0`) with
-your notes. Installs see it within a day, or immediately with *Check now*. The
+**For whoever publishes Void OS:** put the new number in `VERSION`, commit and push.
+A GitHub Actions workflow (`.github/workflows/release.yml`) then creates the tag
+(`v1.2.0`) and a published release with notes generated from the commits. (You can
+still make a release by hand: its tag must be that version, `v1.2.0` or `1.2.0`.)
+Installs see it within a day, or immediately with *Check now*. The
 repository that's checked is fixed in the code (`UPDATE_REPO` in
 `modules/updater.py`, currently `Ishaan1313/voidos`); it can't be changed from `.env` or the interface, so an
 install can't be pointed at some other source of "updates". It must be public;
