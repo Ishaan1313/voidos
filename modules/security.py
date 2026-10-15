@@ -87,7 +87,10 @@ def _rewrite_layout_paths():
 def _init_filesystem():
     SHARED_DIR.mkdir(parents=True, exist_ok=True)
     USERS_DIR.mkdir(parents=True, exist_ok=True)
-    EXTERNAL_DIR.mkdir(parents=True, exist_ok=True)  # mounted USB/SMB/NFS storage — see External Storage
+    try:
+        EXTERNAL_DIR.mkdir(parents=True, exist_ok=True)  # mounted USB/SMB/NFS storage — see External Storage
+    except OSError as e:                                 # never stop the server over this folder
+        consolelog.warn(f"Couldn't create {EXTERNAL_DIR} ({e}); USB and network drives can't be mounted until it is fixed.", "files")
     _rewrite_layout_paths()
     readme = SHARED_DIR / "README.txt"
     if not readme.exists():

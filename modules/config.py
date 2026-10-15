@@ -258,6 +258,12 @@ def _settle_layout_name(new: tuple, old: tuple) -> tuple:
 _SHARED_PARTS = _settle_layout_name(("Shared",), ("home", "shared"))
 _USERS_PARTS = _settle_layout_name(("Users",), ("home", "personal"))
 _DRIVES_PARTS = _settle_layout_name(("Drives",), ("external",))
+if not FILE_ROOT.joinpath(*_DRIVES_PARTS).exists() and not os.access(FILE_ROOT, os.W_OK | os.X_OK):
+    # The top of the storage is read-only for this user (e.g. a drive mounted by root), so a new
+    # folder can't be made there; use one inside the writable home folder instead of failing to start.
+    _DRIVES_PARTS = ("home", "external")
+    consolelog.warn(f"{FILE_ROOT} isn't writable by this user, so drives will be mounted under home/external. "
+                    f"Fix it with: sudo chown -R $USER {FILE_ROOT}", "files")
 try:                                          # the old parent folder, if nothing else is in it
     _old_home = FILE_ROOT / "home"
     if _old_home.is_dir() and not any(_old_home.iterdir()):
