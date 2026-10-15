@@ -1321,6 +1321,15 @@ let _ctrlSock=null,_ctrlReconnectDelay=1000,_ctrlReconnectTimer=null,_termAccess
 // Fill in the page-wide bridge (see `var App` near the top of the script).
 Object.defineProperties(App,{curV:{get:()=>curV,configurable:true},curP:{get:()=>curP,configurable:true}});
 App.reconnectControl=()=>{if(!_ctrlSock||_ctrlSock.readyState>1){_ctrlReconnectDelay=1000;initControlSocket()}};
+(function(){var b=document.querySelectorAll('.blob');if(!b.length)return;
+  var r=function(a,z){return a+Math.random()*(z-a)},sg=function(){return Math.random()<.5?-1:1};
+  b.forEach(function(el){
+    el.style.left=r(-5,85).toFixed(1)+'%';el.style.top=r(-5,85).toFixed(1)+'%';el.style.right='auto';el.style.bottom='auto';
+    el.style.setProperty('--x0',(sg()*r(5,18)).toFixed(1)+'vw');el.style.setProperty('--y0',(sg()*r(5,18)).toFixed(1)+'vh');
+    el.style.setProperty('--x1',(sg()*r(16,34)).toFixed(1)+'vw');el.style.setProperty('--y1',(sg()*r(16,34)).toFixed(1)+'vh');
+    el.style.setProperty('--s1',r(.85,1.35).toFixed(2));
+    el.style.animationDelay='-'+r(0,20).toFixed(1)+'s';       // start part-way through, so no two loads look alike
+  });})();
 if(!SETTINGS.show_blobs)document.body.classList.add('blobs-hidden');
 if(SETTINGS.blob_speed==='static')document.body.classList.add('blob-speed-static');
 else if(SETTINGS.blob_speed==='fast')document.body.classList.add('blob-speed-fast');
@@ -5918,12 +5927,12 @@ async function rAccess(){
   document.getElementById('panicUndoBtn')?.addEventListener('click',undoPanic);
   await loadUsers();
   await loadVisTable();
+  loadAuditLog();                       // not queued behind the drive scans below, which can take a while
+  loadErrorLog();
   await loadStorageCapabilities();
   await loadUsbList();
   await loadNetworkShares();
   if(IS_SUPERUSER)initTermPwControls();
-  await loadAuditLog();
-  loadErrorLog();
   document.getElementById('usbAutoMount')?.addEventListener('change',async e=>{
     const checked=e.target.checked;
     const r=await(await api('/api/storage/usb/auto-mount',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})})).json();
@@ -6253,6 +6262,8 @@ async function loadErrorLog(refFilter='',sourceFilter=''){
           <pre style="white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:rgba(var(--ov-rgb),.05);padding:8px;border-radius:8px;margin-top:6px">${esc(x.trace)}</pre></details>`:''}
       </div></div>`).join(''):`<div class="empty-dir">${refFilter?'No error with that reference code (it may have been cleared, or the server restarted before it was saved)':'No errors recorded \u2014 good news'}</div>`}
   </div>`;
+  const _errRows=[...box.querySelectorAll('.err-row')];
+  if(_errRows.length){const lb=document.createElement('div');lb.className='log-box';_errRows[0].before(lb);_errRows.forEach(r=>lb.appendChild(r))}
   const go_=()=>loadErrorLog(document.getElementById('errRefF').value.trim().toLowerCase(),document.getElementById('errSrcF').value);
   document.getElementById('errRefF')?.addEventListener('keydown',e=>{if(e.key==='Enter')go_()});
   document.getElementById('errSrcF')?.addEventListener('change',go_);
@@ -6282,7 +6293,7 @@ async function loadAuditLog(actionFilter='',userFilter=''){
         <button class="btn btn-g btn-sm" id="auditRefreshBtn">\u21BB Refresh</button>
         ${IS_SUPERUSER?'<button class="btn btn-d btn-sm" id="auditClearBtn">\u{1F5D1} Clear log</button>':''}
       </div>
-      <div id="auditTable">
+      <div id="auditTable" class="log-box">
         ${entries.length?entries.map(auditRow).join(''):'<div class="empty-dir">No activity recorded yet</div>'}
       </div></div>`;
     const doFilter=()=>loadAuditLog(document.getElementById('auditActionF').value,document.getElementById('auditUserF').value.trim());

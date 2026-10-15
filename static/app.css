@@ -15,19 +15,22 @@ button:focus-visible,.gh-switch input:focus-visible+.gh-slider,.toggle input:foc
 .blobs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
 .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.3;mix-blend-mode:screen;
   will-change:transform;backface-visibility:hidden;transform:translateZ(0)}
-.b1{width:500px;height:500px;background:radial-gradient(circle,var(--pu),transparent 70%);top:-14%;left:-10%;animation:d1 16s ease-in-out infinite alternate}
-.b2{width:420px;height:420px;background:radial-gradient(circle,var(--ps),transparent 70%);bottom:-16%;right:-8%;animation:d2 20s ease-in-out infinite alternate}
-.b3{width:300px;height:300px;background:radial-gradient(circle,var(--pd),transparent 70%);top:40%;left:58%;animation:d3 24s ease-in-out infinite alternate}
-@keyframes d1{0%{transform:translate3d(-25px,-25px,0)}to{transform:translate3d(45px,65px,0) scale(1.1)}}
-@keyframes d2{0%{transform:translate3d(38px,29px,0) scale(1.06)}to{transform:translate3d(-46px,-21px,0) scale(.93)}}
-@keyframes d3{0%{transform:translate3d(0,42px,0) scale(.86)}to{transform:translate3d(-36px,-27px,0) scale(1.16)}}
+.b1{width:500px;height:500px;background:radial-gradient(circle,var(--pu),transparent 70%);top:-14%;left:-10%;animation:d1 36s ease-in-out infinite alternate}
+.b2{width:420px;height:420px;background:radial-gradient(circle,var(--ps),transparent 70%);bottom:-16%;right:-8%;animation:d2 44s ease-in-out infinite alternate}
+.b3{width:300px;height:300px;background:radial-gradient(circle,var(--pd),transparent 70%);top:40%;left:58%;animation:d3 52s ease-in-out infinite alternate}
+/* Each blob gets its own random start position and drift (--x0/--y0 -> --x1/--y1, in viewport units) from a
+   small script when the page loads, so it roams most of the screen and no two visits look the same.
+   The values after the commas are the fallback if that script hasn't run. */
+@keyframes d1{0%{transform:translate3d(var(--x0,-25px),var(--y0,-25px),0)}to{transform:translate3d(var(--x1,45px),var(--y1,65px),0) scale(var(--s1,1.1))}}
+@keyframes d2{0%{transform:translate3d(var(--x0,38px),var(--y0,29px),0) scale(1.06)}to{transform:translate3d(var(--x1,-46px),var(--y1,-21px),0) scale(var(--s1,.93))}}
+@keyframes d3{0%{transform:translate3d(var(--x0,0px),var(--y0,42px),0) scale(.86)}to{transform:translate3d(var(--x1,-36px),var(--y1,-27px),0) scale(var(--s1,1.16))}}
 /* Visibility: fully hidden, distinct from "static" (frozen but still visible) below. */
 body.blobs-hidden .blobs{display:none}
 /* Speed tiers. Slow (above) is the default pace. Static = frozen in place. Fast = quicker drift. */
 body.blob-speed-static .blob{animation-play-state:paused!important;transform:translateZ(0)!important}
-body.blob-speed-fast .b1{animation-duration:8s}
-body.blob-speed-fast .b2{animation-duration:10s}
-body.blob-speed-fast .b3{animation-duration:12s}
+body.blob-speed-fast .b1{animation-duration:16s}
+body.blob-speed-fast .b2{animation-duration:20s}
+body.blob-speed-fast .b3{animation-duration:24s}
 /* Login */
 .login-wrap{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;height:100vh;height:100dvh}
 .lcard{width:348px;max-width:91vw;padding:38px 32px 30px;text-align:center;
@@ -1956,3 +1959,7 @@ code,pre,kbd,.path,.toast-ref,.notif-time code,.ip-spoiler-text,.mono{font-famil
 .sidebar:hover,.sidebar.open{background:var(--bg)}
 /* the clock easter egg popup: just the video, no title bar while it is held open */
 .mdl.rick .mhdr{visibility:hidden}
+/* Activity log and Error log: a bounded box that scrolls inside itself, so the page doesn't become hundreds of rows tall */
+.log-box{max-height:min(560px,62vh);overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--bd);border-radius:12px;
+  background:rgba(var(--ov-rgb),.02);scrollbar-width:thin}
+.log-box>.audit-row:first-child,.log-box>.err-row:first-child{border-top:0}

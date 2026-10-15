@@ -275,5 +275,14 @@
             });
         })();
         </script>
-    </body>
+    <script>(function(){var b=document.querySelectorAll('.blob');if(!b.length)return;
+  var r=function(a,z){return a+Math.random()*(z-a)},sg=function(){return Math.random()<.5?-1:1};
+  b.forEach(function(el){
+    el.style.left=r(-5,85).toFixed(1)+'%';el.style.top=r(-5,85).toFixed(1)+'%';el.style.right='auto';el.style.bottom='auto';
+    el.style.setProperty('--x0',(sg()*r(5,18)).toFixed(1)+'vw');el.style.setProperty('--y0',(sg()*r(5,18)).toFixed(1)+'vh');
+    el.style.setProperty('--x1',(sg()*r(16,34)).toFixed(1)+'vw');el.style.setProperty('--y1',(sg()*r(16,34)).toFixed(1)+'vh');
+    el.style.setProperty('--s1',r(.85,1.35).toFixed(2));
+    el.style.animationDelay='-'+r(0,20).toFixed(1)+'s';       // start part-way through, so no two loads look alike
+  });})();</script>
+</body>
 </html>
