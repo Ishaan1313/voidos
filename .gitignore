@@ -41,3 +41,7 @@ voidos.log
 
 # App Store catalog: built from app_catalog.zip on startup (a cache)
 app_catalog/
+
+# Maintainer notes: not part of the public repository
+HANDOFF.md
+CATALOG_PROMPT.md

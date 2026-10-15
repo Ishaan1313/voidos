@@ -53,8 +53,8 @@ from modules.web import app
 
 # The GitHub repository updates come from ("owner/repo", public). Deliberately
 # fixed here, not configurable from .env: an install can't be pointed at some
-# other source of "updates". Fill this in once the repository exists.
-UPDATE_REPO = ""
+# other source of "updates".
+UPDATE_REPO = "Ishaan1313/voidos"
 # The only setting: VOID_UPDATES=off disables updates entirely (no checks, no installs).
 UPDATES_ENABLED = os.environ.get("VOID_UPDATES", "on").strip().lower() not in ("off", "false", "no", "0")
 UPDATE_CHECK = os.environ.get("VOID_UPDATE_CHECK", "true").strip().lower() != "false"
@@ -67,7 +67,7 @@ _GITHUB_HOSTS = {"api.github.com", "github.com"}
 
 # What a release may replace. Anything else in the zip is ignored, and these
 # names can never be overwritten whatever a release contains.
-PROGRAM_ENTRIES = {"voidos.py", "VERSION", "requirements.txt", "README.md", "HANDOFF.md",
+PROGRAM_ENTRIES = {"voidos.py", "VERSION", "requirements.txt", "README.md",
                    "modules", "templates", "static", "first setup",
                    "app_catalog.zip", ".gitignore", ".gitattributes"}
 NEVER_TOUCH = {".env", ".venv", ".tools", "tmp", "app_catalog", "app_catalog_updated.zip", "wallpapers", "rclone_conf", "icon-cache"}

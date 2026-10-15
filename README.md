@@ -1,120 +1,172 @@
-# Void OS
+<div align="center">
 
-A self-hosted home server dashboard for a household or small group: your files,
-apps, a terminal and remote access, all from one browser tab. It runs on a
-Raspberry Pi, any Linux machine, macOS or Windows.
+# 🌌 Void OS
+
+**Your home server in one browser tab.** Files, apps, a terminal, remote access, cloud sync and an intercom — on a Raspberry Pi, any Linux box, macOS or Windows.
+
+<img src="docs/screenshots/dashboard.png" alt="Void OS dashboard" width="900">
+
+</div>
+
+---
+
+## ⚡ Install in one line
+
+One file per system. It downloads Void OS, installs everything it needs and sets it up (service, `voidos` command, first-run wizard).
+
+**🐧 Linux · 🍓 Raspberry Pi · 🍎 macOS**
+```bash
+curl -fsSL https://raw.githubusercontent.com/Ishaan1313/voidos/main/first%20setup/install.sh | bash
+```
+
+**🪟 Windows 10 / 11** (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/Ishaan1313/voidos/main/first%20setup/install.ps1 | iex
+```
+
+When it finishes it prints the address to open (`http://localhost:7777`). Create your account there: **the first account becomes the Super User, so do it right away.**
+Run the same line again any time to refresh the program files; your `.env` and data are kept.
+
+<details>
+<summary>⚙️ Options (port, folders, unattended, another install folder)</summary>
+
+```bash
+# Linux / macOS: options go after "bash -s --"
+curl -fsSL https://raw.githubusercontent.com/Ishaan1313/voidos/main/first%20setup/install.sh | bash -s -- --yes --port 8080
+VOIDOS_DIR=/opt/voidos curl -fsSL https://raw.githubusercontent.com/Ishaan1313/voidos/main/first%20setup/install.sh | bash
+```
+```powershell
+# Windows: set variables first
+$env:VOIDOS_YES = '1'               # no questions
+$env:VOIDOS_DIR = 'D:\voidos'       # another install folder
+irm https://raw.githubusercontent.com/Ishaan1313/voidos/main/first%20setup/install.ps1 | iex
+```
+Every option is listed by `bash "first setup/install.sh" --help` / `.\install.ps1 -Help`.
+</details>
+
+---
+
+## 📸 A look around
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/home-screen.png" alt="Home screen"><br><sub>🏠 <b>Home screen</b> — launcher, search, live server stats and a particle clock</sub></td>
+<td width="50%"><img src="docs/screenshots/files.png" alt="Files"><br><sub>📁 <b>Files</b> — resumable uploads, share links, Recycle Bin, WebDAV, drives</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/appstore.png" alt="App Store"><br><sub>🛍️ <b>App Store</b> — 179 apps, one click each, previewed before install</sub></td>
+<td><img src="docs/screenshots/terminal.png" alt="Terminal"><br><sub>💻 <b>Terminal</b> — real shells in the browser, several tabs, kept running between pages</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/access-control.png" alt="Access control"><br><sub>👥 <b>People</b> — Super User, Admin and Guest ranks, switches that act instantly</sub></td>
+<td><img src="docs/screenshots/intercom.png" alt="Intercom"><br><sub>🎙️ <b>Intercom</b> — talk to speakers and microphones on the server, Bluetooth too</sub></td>
+</tr>
+</table>
+
+### 🎨 Five themes
+
+<table>
+<tr>
+<td><img src="docs/screenshots/theme-void.png" alt="Void"><br><sub>Void</sub></td>
+<td><img src="docs/screenshots/theme-emerald.png" alt="Emerald"><br><sub>Emerald</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/theme-crimson.png" alt="Crimson"><br><sub>Crimson</sub></td>
+<td><img src="docs/screenshots/theme-light.png" alt="Light"><br><sub>Light</sub></td>
+</tr>
+</table>
+
+<sub>Plus <b>Horizon</b>, the default (first picture). Pick yours in <i>Settings → Appearance</i>.</sub>
+
+<img src="docs/screenshots/settings-appearance.png" alt="Settings: appearance" width="700">
+
+---
+
+## ✨ What you get
 
 | | |
 |---|---|
-| **Files** | Browse, upload any size (resumable), share links, Recycle Bin, search, WebDAV network drive, USB drives and SMB/NFS shares |
-| **Apps** | A 178-app Docker App Store (refreshable without updating Void OS), dashboard tiles, container management |
-| **Remote access** | A built-in Cloudflare Quick Tunnel (no account, no open ports), a separate tunnel per app, a PIN gate in front of tunneled apps |
-| **Terminal** | A real shell in the browser |
-| **Cloud** | Dropbox and Google Drive: browse, import, export, continuous two-way sync |
-| **Intercom** | Talk to, or listen through, named rooms (speakers and microphones on the server, Bluetooth or not) from anywhere |
-| **People** | Super User, Admin and Guest ranks, per-permission switches that take effect instantly, sessions, activity log, guest storage quotas |
-| **Interface** | Classic (sidebar) or a home screen, six themes, wallpapers |
-| **Notifications** | An in-app bell plus email, Discord and Telegram |
+| 📁 **Files** | Browse, upload any size (resumable), share links with PINs, Recycle Bin, search, WebDAV network drive, USB drives and SMB/NFS shares |
+| 🛍️ **Apps** | A 179-app Docker App Store (refreshable without updating Void OS), dashboard tiles, container management |
+| 🌍 **Remote access** | A built-in Cloudflare Quick Tunnel (no account, no open ports), a separate tunnel per app, a PIN gate in front of tunneled apps |
+| 💻 **Terminal** | Real shells in the browser, as many tabs as you like |
+| ☁️ **Cloud** | Dropbox and Google Drive: browse, import, export, continuous two-way sync |
+| 🎙️ **Intercom** | Talk to, or listen through, named rooms (speakers and microphones on the server, Bluetooth or not) from anywhere |
+| 👥 **People** | Super User, Admin and Guest ranks, per-permission switches that take effect instantly, sessions, activity log, guest quotas, optional two-factor sign-in |
+| 🎨 **Interface** | Classic (sidebar) or a home screen, five themes, wallpapers |
+| 🔔 **Notifications** | An in-app bell plus email, Discord and Telegram |
+| 🔄 **Updates** | One click from GitHub releases; app list refreshable on its own |
 
 ---
 
-## Core rule: changes are enforced instantly
+## ⚖️ Core rule: changes are enforced instantly
 
-Whatever one person changes for another takes effect **immediately**, not at the next page load, next
-login or next restart. This applies to every setting that can affect other users, and to everything
-that is already running when the change is made:
+Whatever one person changes for another takes effect **immediately** — not at the next page load, next login or next restart. This applies to every setting that can affect other users, and to everything already running when the change is made:
 
-- **Revoking a session** ends that device's terminal, intercom call and page within a second, and the
-  page is sent to the sign-in screen. A session that disappears by any other route is swept within
-  seconds.
-- **Changing a rank or a permission** (Terminal, Docker, Intercom, full file access, promote, demote,
-  delete, Super User transfer, 2FA reset, password reset) updates the person's open page at once:
-  navigation, buttons and pages appear or vanish without a reload. Access they lost is cut on the spot:
-  a live terminal or call is closed, and copies and zips they started stop.
-- **Shared things** (tiles, drives and network shares, the server-wide interface default, the user list)
-  are pushed to every open page that shows them.
-- **Share links** stop working the moment they are revoked, even for a visitor who already unlocked them.
-- If a push is ever missed (a dropped tunnel, a sleeping laptop) the page re-checks its own access when it
-  reconnects, when the tab is shown again and every 10 seconds.
+- 🚪 **Revoking a session** ends that device's terminal, intercom call and page within a second, and the page is sent to the sign-in screen. A session that disappears by any other route is swept within seconds.
+- 🎚️ **Changing a rank or a permission** (Terminal, Docker, Intercom, full file access, promote, demote, delete, Super User transfer, 2FA reset, password reset) updates the person's open page at once: navigation, buttons and pages appear or vanish without a reload. Access they lost is cut on the spot: a live terminal or call is closed, and copies and zips they started stop.
+- 📡 **Shared things** (tiles, drives and network shares, the server-wide interface default, the user list) are pushed to every open page that shows them.
+- 🔗 **Share links** stop working the moment they are revoked, even for a visitor who already unlocked them.
+- 🛟 If a push is ever missed (a dropped tunnel, a sleeping laptop) the page re-checks its own access when it reconnects, when the tab is shown again and every 10 seconds.
 
-Anything new that changes what another account may see or do must follow the same rule: enforce it on the
-server at the moment of the change, push it to open pages, and cancel work that depends on the old access.
-The mechanism and a checklist are in HANDOFF.md.
+New features follow the same rule: enforce on the server at the moment of the change, push it to open pages, and cancel work that depends on the old access (the hooks are in `modules/web.py`).
 
 ---
 
-## Contents
+## 📑 Contents
 
-0. [Core rule: changes are enforced instantly](#core-rule-changes-are-enforced-instantly)
-1. [Install](#install)
-2. [First run](#first-run)
-3. [Using Void OS](#using-void-os) — interface, files, apps, terminal
-4. [Cloud storage](#cloud-storage)
-5. [External storage](#external-storage)
-6. [Intercom](#intercom)
-7. [Remote access](#remote-access)
-8. [Users and permissions](#users-and-permissions) — including [two-factor sign-in](#two-factor-sign-in)
-9. [Notifications](#notifications)
-10. [Configuration](#configuration)
-11. [Updates](#updates)
-12. [Backup and restore](#backup-and-restore)
-13. [Troubleshooting](#troubleshooting)
-14. [Platform notes](#platform-notes)
-15. [Security](#security)
-16. [Project layout](#project-layout)
+0. [Install in one line](#-install-in-one-line)
+1. [Install in detail](#-install-in-detail)
+2. [First run](#-first-run)
+3. [Using Void OS](#-using-void-os) — interface, files, apps, terminal
+4. [Cloud storage](#-cloud-storage)
+5. [External storage](#-external-storage)
+6. [Intercom](#-intercom)
+7. [Remote access](#-remote-access)
+8. [Users and permissions](#-users-and-permissions) — including [two-factor sign-in](#two-factor-sign-in)
+9. [Notifications](#-notifications)
+10. [Configuration](#-configuration)
+11. [Updates](#-updates)
+12. [Backup and restore](#-backup-and-restore)
+13. [Troubleshooting](#-troubleshooting)
+14. [Platform notes](#-platform-notes)
+15. [Security](#-security)
+16. [Project layout](#-project-layout)
 
 ---
 
-## Install
+## 📦 Install in detail
 
-**Needs:** Python 3.10 or newer (the installers fetch it if it's missing), about
-1 GB of RAM, and Docker only if you want the App Store. Works on Raspberry Pi
-OS, Debian, Ubuntu, Fedora/RHEL, Arch, openSUSE, Alpine, macOS and Windows
-10/11.
+**Needs:** Python 3.10 or newer (the installer fetches it if it's missing), about 1 GB of RAM, and Docker only if you want the App Store. Works on Raspberry Pi OS, Debian, Ubuntu, Fedora/RHEL, Arch, openSUSE, Alpine, macOS and Windows 10/11.
 
-### With the installer (recommended)
+### From a downloaded copy
 
-Download or extract Void OS, then from inside its folder:
+Download or clone the repository, then from inside its folder:
 
 ```bash
-bash "first setup/install.sh"          # Linux, Raspberry Pi, macOS
+bash "first setup/install.sh"                 # Linux, Raspberry Pi, macOS
 ```
+On Windows, double-click **`first setup\install.cmd`** (it runs `install.ps1` beside it).
 
-On Windows, double-click **`first setup\install.cmd`**.
-
-The installer asks a few questions up front (port, files folder, optional
-features), then runs on its own. It checks the system, finds or installs
-Python, installs Void OS's packages into a private `.venv/` folder, installs the
-tools for any optional features you picked, creates your `.env` with a fresh
-secret key, sets Void OS to start automatically (a systemd service, launchd on
-macOS, or a Startup shortcut on Windows), starts it, and prints the address to
-open. It needs administrator rights, because it installs system packages and a
-service: on Linux it re-runs itself with `sudo` (or start it that way), and on
-Windows it asks for the UAC prompt and continues in an elevated window. Void OS itself
-still runs as your own account, not as root. Everything is logged to `install.log`.
+The installer asks a few questions up front (port, files folder, optional features), then runs on its own. It checks the system, finds or installs Python, installs Void OS's packages into a private `.venv/` folder, installs the tools for any optional features you picked, creates your `.env` with a fresh secret key, sets Void OS to start automatically (a systemd service, launchd on macOS, or a Startup shortcut on Windows), starts it, and prints the address to open. It needs administrator rights, because it installs system packages and a service: on Linux it re-runs itself with `sudo` (or start it that way), and on Windows it asks for the UAC prompt and continues in an elevated window. Void OS itself still runs as your own account, not as root. Everything is logged to `install.log`.
 
 Useful options:
 
 ```bash
-bash "first setup/install.sh" --yes                           # no questions, defaults
+bash "first setup/install.sh" --yes                               # no questions, defaults
 bash "first setup/install.sh" --port 8080 --file-root /media/STORAGE
 bash "first setup/install.sh" --with tunnel,sync --without docker
-bash "first setup/install.sh" --private-python                # isolated Python even if the system has one
+bash "first setup/install.sh" --private-python                    # isolated Python even if the system has one
 bash "first setup/install.sh" --no-service --no-start
 bash "first setup/install.sh" --uninstall
 ```
-
 ```powershell
 "first setup\install.cmd" -Yes
 "first setup\install.cmd" -Port 8080 -FileRoot D:\VoidFiles -With tunnel,sync
 "first setup\install.cmd" -Uninstall
 ```
 
-On Linux and macOS the installer sets up **everything** Void OS can use by default
-(Docker, USB and network-share tools, cloudflared and Node for remote access, rclone,
-and Bluetooth/PipeWire audio), so nothing is missing later; use `--without` to skip any.
-Installing cloudflared does not switch the public tunnel on. The password-less mount
-rule is the one thing that stays off unless you ask for it (`--with mount`).
+On Linux and macOS the installer sets up **everything** Void OS can use by default (Docker, USB and network-share tools, cloudflared and Node for remote access, rclone, and Bluetooth/PipeWire audio), so nothing is missing later; use `--without` to skip any. Installing cloudflared does not switch the public tunnel on. The password-less mount rule is the one thing that stays off unless you ask for it (`--with mount`).
 
 It also installs a **`voidos`** command:
 
@@ -126,14 +178,9 @@ voidos config       # edit .env          voidos enable|disable   # start at boot
 voidos update       # re-run the installer (keeps your data)
 ```
 
-After you create the first account, a **setup wizard** asks for every setting in
-`.env` (basics first, then one optional step per group of advanced settings, then a
-review). Anything left alone keeps its default.
+After you create the first account, a **setup wizard** asks for every setting in `.env` (basics first, then one optional step per group of advanced settings, then a review). Anything left alone keeps its default.
 
-Re-running the installer is safe: it keeps your `.env` and all data. Uninstalling
-removes the service and the Python environment but keeps your files, `.env` and
-Void OS's data. The `first setup` folder is only needed for installing,
-re-running and uninstalling.
+Re-running the installer is safe: it keeps your `.env` and all data. Uninstalling removes the service and the Python environment but keeps your files, `.env` and Void OS's data. The `first setup` folder holds the installers and `.env.example`; leave it in place.
 
 ### First account, and what protects it
 
@@ -194,7 +241,7 @@ systemd can't parse the inline `# comments` `.env` uses.
 
 ---
 
-## First run
+## 🚀 First run
 
 Open the address the installer printed (default `http://localhost:7777`). With
 no accounts yet, a **setup wizard** appears:
@@ -212,7 +259,7 @@ take effect after a restart, and the wizard offers **Restart now**.
 
 ---
 
-## Using Void OS
+## 🧭 Using Void OS
 
 ### The interface
 
@@ -413,7 +460,7 @@ replaced; anything wrong changes nothing. Installed apps are never touched, an
 older list can't replace a newer one, and `VOID_UPDATES=off` turns this off
 along with program updates. Whoever controls the repository controls the list,
 as with program updates; installs are still previewed and risky settings
-flagged. To publish a list see `CATALOG_PROMPT.md` (below).
+flagged. The list is built with `modules/catalog_pack.py` (see *Publishing the app list* below).
 
 **Install** shows a preview of the exact compose file and the image versions it
 will pull, then writes it into the app's own folder under `VOID_APP_DATA_DIR`,
@@ -472,15 +519,13 @@ Uninstalling keeps the app's data unless you tick *also delete data* and type
 the app's name. On Windows, a few community apps pass through Linux devices
 (USB/Zigbee sticks, GPUs) that Docker Desktop can't provide.
 
-**Publishing the app list** (maintainers). `CATALOG_PROMPT.md` is a ready-made prompt
-for an AI coding agent: it pulls the app definitions from the upstream community
-repository, converts each one to the Void OS format (loopback-only ports, data under
-`{{DATA_DIR}}`, clean env values, an icon), validates the result with
-`modules/catalog_pack.py` and builds `dist/app_catalog.zip` and `dist/catalog.json`. The
-zip can replace the repository's `app_catalog.zip` (ships with the next release), or
-both files can be attached to a GitHub release tagged `catalog` so every install gets
-it within a day with no program update. In a manifest, `"featured": true` puts an app
-in *Popular picks*.
+**Publishing the app list** (maintainers). Convert the upstream community app definitions to
+the Void OS format (loopback-only ports, data under `{{DATA_DIR}}`, clean env values, an
+icon), check the folder with `modules/catalog_pack.py` (`validate_dir`) and build
+`app_catalog.zip` and `catalog.json` with its `build`. The zip can replace the repository's
+`app_catalog.zip` (ships with the next release), or both files can be attached to a GitHub
+release tagged `catalog` so every install gets it within a day with no program update. In a
+manifest, `"featured": true` puts an app in *Popular picks*.
 
 **Containers** lists every container with Start, Stop, Restart, Logs and
 Remove (optionally deleting the image too, unless another container uses it).
@@ -511,7 +556,7 @@ through tunnels and proxies.
 
 ---
 
-## Cloud storage
+## ☁️ Cloud storage
 
 **Settings → Cloud storage** connects your own Dropbox or Google Drive account.
 You can then **browse** it, **import** files (a background transfer into a
@@ -586,7 +631,7 @@ config path that's deleted when the run ends.
 
 ---
 
-## External storage
+## 💾 External storage
 
 **Access Control → External storage** (Admins and the Super User) mounts drives
 and shares into Files under `Drives/<name>`, where they work like any other
@@ -625,7 +670,7 @@ instead. Links are followed only inside their own drive.
 
 ---
 
-## Intercom
+## 🎙️ Intercom
 
 **Intercom** lets people talk to, and listen through, the audio devices attached to
 the server (a Bluetooth speaker in the kitchen, a USB headset in the workshop, the
@@ -672,7 +717,7 @@ device, so use *Forget* to unpair.
 
 ---
 
-## Remote access
+## 🌍 Remote access
 
 ### Cloudflare Quick Tunnel
 
@@ -809,7 +854,7 @@ control, list it in `VOID_ALLOWED_ORIGINS`.
 
 ---
 
-## Users and permissions
+## 👥 Users and permissions
 
 There are three ranks: **Super User → Admin → Guest**. There is exactly one
 Super User, created during setup.
@@ -915,7 +960,7 @@ never sent). Set `VOID_GEOLOCATE=off` and no IP ever leaves your server.
 
 ---
 
-## Notifications
+## 🔔 Notifications
 
 ### The bell
 
@@ -948,7 +993,7 @@ messages.
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 Settings live in **`.env`** next to `voidos.py`. A new `.env` is short: the secret
 key, port, name, HTTPS flag and the two update switches. **`first setup/.env.example`
@@ -1023,7 +1068,7 @@ chunked uploads, App Store installs and public share downloads per minute.
 
 ---
 
-## Updates
+## 🔄 Updates
 
 Void OS updates from the **GitHub releases** of its repository. Update checks are
 **on by default**.
@@ -1032,7 +1077,7 @@ Void OS updates from the **GitHub releases** of its repository. Update checks ar
 then create a GitHub release whose tag is that version (`v1.2.0` or `1.2.0`) with
 your notes. Installs see it within a day, or immediately with *Check now*. The
 repository that's checked is fixed in the code (`UPDATE_REPO` in
-`modules/updater.py`); it can't be changed from `.env` or the interface, so an
+`modules/updater.py`, currently `Ishaan1313/voidos`); it can't be changed from `.env` or the interface, so an
 install can't be pointed at some other source of "updates". It must be public;
 pre-releases and drafts are ignored.
 
@@ -1076,7 +1121,7 @@ Settings says so). Protect the publishing GitHub account with two-factor sign-in
 
 ---
 
-## Backup and restore
+## 🗄️ Backup and restore
 
 **Settings → Backup & restore** (Super User) exports one file with accounts, app
 tiles, sessions, share links and installed-app records, and restores from one
@@ -1089,7 +1134,7 @@ password hashes or encrypted logins and are ignored by git.
 
 ---
 
-## Troubleshooting
+## 🛠️ Troubleshooting
 
 **Error messages** say what went wrong and what to do — *"There isn't enough free
 space on the drive"*, *"That file is open in another program"*, *"That port is
@@ -1134,7 +1179,7 @@ Common issues:
 
 ---
 
-## Platform notes
+## 🖥️ Platform notes
 
 **Raspberry Pi.** Use `bash "first setup/install.sh"`. On 64-bit Raspberry Pi OS
 everything installs from prebuilt packages; on 32-bit some packages compile during
@@ -1168,7 +1213,7 @@ command-line management tool (the Terminal and SSH cover that).
 
 ---
 
-## Security
+## 🔐 Security
 
 - **Permissions are enforced on the server.** The interface only reflects them.
 - **Two-factor sign-in (optional):** time-based codes (RFC 6238) plus one-time
@@ -1208,21 +1253,21 @@ command-line management tool (the Terminal and SSH cover that).
 
 ---
 
-## Project layout
+## 🗂️ Project layout
 
 ```
 voidos.py                   entry point: `python voidos.py` starts everything
 VERSION                     this copy's version (used by the updater)
 requirements.txt            Python packages (installed again automatically when it changes)
 app_catalog.zip             the App Store catalog, extracted to app_catalog/ on start
-HANDOFF.md                  development history and design decisions
 
 modules/                    the server, one feature per file (modules/__init__.py lists each file's job)
 templates/                  index.html (the app, sign-in and setup pages), share.html, 404.html
 static/                     app.js, app.css, service worker, themes (css/themes.css),
                             fonts/, vendor/ (terminal, viewer), file-icons/
 
-first setup/                installers (install.sh, install.cmd, install.ps1), helper.py,
+first setup/                the installers (install.sh for Linux/Pi/macOS, install.ps1 for Windows,
+                            install.cmd as its double-click launcher), helper.py, voidos-ctl.sh,
                             .env.example (every setting), cloudflare-worker-example.js
 ```
 
@@ -1231,4 +1276,3 @@ Created at runtime and ignored by git: `.env`, `.venv/`, `.tools/`, `app_catalog
 `sessions.json`, `apps.json`, `shares.json`, `audit.log`, `error_log.jsonl`,
 `cloud_tokens.json`, …, all listed in `.gitignore`). Back these up with your files.
 
-For how and why things are built the way they are, see **`HANDOFF.md`**.

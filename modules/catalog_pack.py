@@ -1,6 +1,6 @@
 """
 modules/catalog_pack.py — the App Store list as a package. Pure Python (no Flask, no app
-state) so the server, the updater and the maintainer's catalog prompt (CATALOG_PROMPT.md) all use the same code.
+state) so the server, the updater and the maintainer's catalog tooling all use the same code.
 
 A catalog package is a zip with one top-level folder, `app_catalog/`:
 

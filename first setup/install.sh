@@ -1,21 +1,74 @@
 #!/usr/bin/env bash
 # ══════════════════════════════════════════════════════════════════════
 #  Void OS installer — Linux (Debian/Ubuntu/Raspberry Pi OS, Fedora/RHEL,
-#  Arch, openSUSE, Alpine) and macOS.        Windows: use install.cmd
+#  Arch, openSUSE, Alpine) and macOS.        Windows: use install.ps1
 #
+#  ONE FILE does everything: downloads Void OS, installs it and sets it up.
+#
+#    curl -fsSL https://raw.githubusercontent.com/Ishaan1313/voidos/main/first%20setup/install.sh | bash
+#    curl -fsSL .../install.sh | bash -s -- --yes --port 8080     options after "--"
+#
+#  Or from a downloaded copy of the repository:
 #    bash "first setup/install.sh"           interactive
 #    bash "first setup/install.sh" --yes     accept all defaults (unattended)
 #    bash "first setup/install.sh" --help    every option
 #
+#  Run from the web it first downloads the newest release (the main branch when
+#  there is none yet) into ~/voidos (VOIDOS_DIR=/opt/voidos picks another folder).
 #  Safe to re-run: it updates the Python packages, keeps your .env and data,
 #  and refreshes the service. On Linux it needs administrator rights (it
 #  installs packages and a system service): it re-runs itself with sudo, or
-#  start it that way:  sudo bash "first setup/install.sh". Void OS itself still
-#  runs as the account that started the installer, not as root.
+#  start it that way:  sudo bash "first setup/install.sh". Void OS itself still runs as the
+#  account that started the installer, not as root.
 # ══════════════════════════════════════════════════════════════════════
 set -Eeuo pipefail
 
-SETUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"   # <app>/first setup
+# ── step 0: get Void OS onto this machine (only when run from the web) ──
+# Piped from curl there is no file next to this script, so download first, then run the downloaded
+# copy of this same file. Started from inside a Void OS folder this does nothing.
+_SELF="${BASH_SOURCE[0]:-}"
+_HERE=""
+[[ -n $_SELF && -f $_SELF ]] && _HERE="$(cd "$(dirname "$_SELF")" && pwd)"
+if [[ -z $_HERE || ! -f "$_HERE/../voidos.py" ]]; then
+  _REPO="Ishaan1313/voidos"
+  _die() { printf '\n  ✗ %s\n\n' "$*" >&2; exit 1; }
+  command -v tar >/dev/null 2>&1 || _die "tar is needed to unpack Void OS. Install it with your package manager and run this again."
+  if   command -v curl >/dev/null 2>&1; then _fetch() { curl -fsSL "$1"; };  _fetch_to() { curl -fsSL -o "$2" "$1"; }
+  elif command -v wget >/dev/null 2>&1; then _fetch() { wget -qO- "$1"; };   _fetch_to() { wget -qO "$2" "$1"; }
+  else _die "curl (or wget) is needed to download Void OS. Install it and run this again."; fi
+  # Started with sudo: install for the person who typed it, not for root.
+  _OWNER=""
+  if [[ ${EUID:-$(id -u)} == 0 && -n ${SUDO_USER:-} && $SUDO_USER != root ]]; then
+    _OWNER="$SUDO_USER"
+    _H="$(getent passwd "$_OWNER" 2>/dev/null | cut -d: -f6 || true)"; _H="${_H:-/home/$_OWNER}"
+  else
+    _H="$HOME"
+  fi
+  _DIR="${VOIDOS_DIR:-$_H/voidos}"
+  _TAG="$(_fetch "https://api.github.com/repos/$_REPO/releases/latest" 2>/dev/null \
+          | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true)"
+  if [[ -n $_TAG && $_TAG =~ ^[A-Za-z0-9._-]+$ ]]; then
+    _URL="https://github.com/$_REPO/archive/refs/tags/$_TAG.tar.gz"; _WHAT="release $_TAG"
+  else
+    _URL="https://github.com/$_REPO/archive/refs/heads/main.tar.gz"; _WHAT="the main branch"
+  fi
+  printf '\n  Downloading Void OS (%s)…\n' "$_WHAT"
+  _TMP="$(mktemp -d)"; trap 'rm -rf "$_TMP"' EXIT
+  _fetch_to "$_URL" "$_TMP/voidos.tar.gz" || _die "Couldn't download $_URL. Check your internet connection."
+  mkdir -p "$_DIR"
+  if [[ -f "$_DIR/voidos.py" ]]; then printf '  Updating the existing install in %s (your .env and data are kept)…\n' "$_DIR"
+  else printf '  Installing into %s …\n' "$_DIR"; fi
+  tar -xzf "$_TMP/voidos.tar.gz" -C "$_DIR" --strip-components=1 || _die "The download couldn't be unpacked."
+  [[ -f "$_DIR/first setup/install.sh" && -f "$_DIR/voidos.py" ]] || _die "The download doesn't look like Void OS (first setup/install.sh is missing)."
+  [[ -n $_OWNER ]] && chown -R "$_OWNER" "$_DIR" 2>/dev/null || true
+  trap - EXIT; rm -rf "$_TMP"
+  # Piped from curl, stdin is this script: hand the keyboard back for the installer's questions.
+  if [[ ! -t 0 ]] && ( : </dev/tty ) 2>/dev/null; then exec bash "$_DIR/first setup/install.sh" "$@" </dev/tty; fi
+  [[ -t 0 ]] || set -- --yes "$@"      # no terminal to ask on (unattended): take the defaults
+  exec bash "$_DIR/first setup/install.sh" "$@"
+fi
+
+SETUP_DIR="$_HERE"                                               # <app>/first setup
 VOIDOS_DIR="$(cd "$SETUP_DIR/.." && pwd)"                        # <app>
 LOG="$VOIDOS_DIR/install.log"
 VENV="$VOIDOS_DIR/.venv"
@@ -310,7 +363,7 @@ fi
 # ══════════════════════════════════════════════════════════════════════
 banner
 { echo; echo "──── install.sh $(date '+%Y-%m-%d %H:%M:%S') ────"; } >>"$LOG"
-[[ -f "$VOIDOS_DIR/voidos.py" ]] || fail "voidos.py isn't in the folder above this script — keep install.sh inside the Void OS \"first setup\" folder."
+[[ -f "$VOIDOS_DIR/voidos.py" && -f "$SETUP_DIR/helper.py" ]] || fail "voidos.py isn't in the folder above this script — keep install.sh inside the Void OS \"first setup\" folder."
 [[ $OS == Linux || $OS == Darwin ]] || fail "This installer is for Linux and macOS. On Windows, run install.cmd."
 
 # ── 1. System ─────────────────────────────────────────────────────────

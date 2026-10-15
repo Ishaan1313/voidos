@@ -2,10 +2,19 @@
 ══════════════════════════════════════════════════════════════════════
  Void OS installer — Windows 10 / 11          Linux & macOS: install.sh
 
+ ONE FILE does everything: downloads Void OS, installs it and sets it up.
+
+   irm https://raw.githubusercontent.com/Ishaan1313/voidos/main/first%20setup/install.ps1 | iex
+
+ Or from a downloaded copy of the repository:
    Double-click install.cmd                (easiest), or in PowerShell:
    .\install.ps1                           interactive
    .\install.ps1 -Yes                      accept all defaults
    .\install.ps1 -Help                     every option
+
+ Run from the web it first downloads the newest release (the main branch when
+ there is none yet) into %USERPROFILE%\voidos ($env:VOIDOS_DIR picks another
+ folder; $env:VOIDOS_YES = '1' skips the questions).
 
  Safe to re-run: updates the Python packages, keeps your .env and data.
  Needs administrator rights: started normally, it asks Windows for them
@@ -39,7 +48,54 @@ try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 # Windows PowerShell 5.1 defaults to TLS 1.0, which python.org and GitHub refuse
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-$SetupDir = Split-Path -Parent $MyInvocation.MyCommand.Path     # <app>\first setup
+# ── step 0: get Void OS onto this machine (only when run from the web) ──
+# Through "irm | iex" there is no file, so download first, then run the downloaded copy of this same
+# file with the same options. Started from inside a Void OS folder this does nothing.
+$__self = $null
+try { $__self = $MyInvocation.MyCommand.Path } catch { }
+$__here = if ($__self) { Split-Path -Parent $__self } else { '' }
+if (-not $__here -or -not (Test-Path (Join-Path (Split-Path -Parent $__here) 'voidos.py'))) {
+  $__repo = 'Ishaan1313/voidos'
+  $__dir  = if ($env:VOIDOS_DIR) { $env:VOIDOS_DIR } else { Join-Path $env:USERPROFILE 'voidos' }
+  $__url = "https://github.com/$__repo/archive/refs/heads/main.zip"; $__what = 'the main branch'
+  try {
+    $__rel = Invoke-RestMethod -UseBasicParsing -Uri "https://api.github.com/repos/$__repo/releases/latest" -Headers @{ 'User-Agent' = 'voidos-installer' }
+    if ($__rel.tag_name -match '^[A-Za-z0-9._-]+$') {
+      $__url = "https://github.com/$__repo/archive/refs/tags/$($__rel.tag_name).zip"; $__what = "release $($__rel.tag_name)"
+    }
+  } catch { }
+  Write-Host ''
+  Write-Host "  Downloading Void OS ($__what)..."
+  $__tmp = Join-Path ([IO.Path]::GetTempPath()) ('voidos-' + [Guid]::NewGuid().ToString('N'))
+  New-Item -ItemType Directory -Path $__tmp | Out-Null
+  try {
+    $__zip = Join-Path $__tmp 'voidos.zip'
+    Invoke-WebRequest -UseBasicParsing -Uri $__url -OutFile $__zip
+    Expand-Archive -Path $__zip -DestinationPath $__tmp -Force
+    $__src = Get-ChildItem -Path $__tmp -Directory | Select-Object -First 1
+    if (-not $__src -or -not (Test-Path (Join-Path $__src.FullName 'first setup\install.ps1'))) {
+      throw "The download doesn't look like Void OS (first setup\install.ps1 is missing)."
+    }
+    if (Test-Path (Join-Path $__dir 'voidos.py')) { Write-Host "  Updating the existing install in $__dir (your .env and data are kept)..." }
+    else { Write-Host "  Installing into $__dir ..." }
+    New-Item -ItemType Directory -Path $__dir -Force | Out-Null
+    Copy-Item -Path (Join-Path $__src.FullName '*') -Destination $__dir -Recurse -Force
+  } finally {
+    Remove-Item -Path $__tmp -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  # Re-run the downloaded installer with the same options (-ExecutionPolicy Bypass: a script file may be blocked by policy).
+  $__args = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $__dir 'first setup\install.ps1'))
+  foreach ($__k in $PSBoundParameters.Keys) {
+    $__v = $PSBoundParameters[$__k]
+    if ($__v -is [System.Management.Automation.SwitchParameter]) { if ($__v.IsPresent) { $__args += "-$__k" } }
+    else { $__args += "-$__k"; $__args += [string]$__v }
+  }
+  if ($env:VOIDOS_YES -and -not $Yes) { $__args += '-Yes' }
+  & powershell @__args
+  return
+}
+
+$SetupDir = $__here                                              # <app>\first setup
 $Root    = Split-Path -Parent $SetupDir                          # <app>
 $Log     = Join-Path $Root 'install.log'
 $Venv    = Join-Path $Root '.venv'
