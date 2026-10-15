@@ -148,6 +148,50 @@ def summarize_failure(output: str, limit: int = 600) -> str:
     return (msg[:limit - 1] + "\u2026") if len(msg) > limit else (msg or "rclone failed without a message")
 
 
+# ── Leftover bisync locks ────────────────────────────────────────────────
+# While bisync runs it keeps a lock file in rclone's cache folder. If Void OS is restarted or updated
+# mid-sync, or rclone is killed, that file stays behind and every later run refuses with "prior lock
+# file found". Only one run per pair ever happens here (one thread each), so a lock that is older than a
+# couple of minutes and belongs to no run of ours is stale and safe to remove.
+_running = 0
+_running_lock = threading.Lock()
+STALE_LOCK_S = 2 * 60
+
+
+def _bisync_cache_dir() -> Path:
+    env = os.environ.get("RCLONE_CACHE_DIR")
+    if env:
+        return Path(env) / "bisync"
+    if sys.platform == "win32":
+        root = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
+    elif sys.platform == "darwin":
+        root = Path.home() / "Library" / "Caches"
+    else:
+        root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache"))
+    return root / "rclone" / "bisync"
+
+
+def clear_stale_locks(remote_name: str) -> int:
+    """Remove this remote's leftover bisync lock files, when no run of ours is in progress.
+    Returns how many were removed."""
+    with _running_lock:
+        if _running:
+            return 0
+    removed = 0
+    try:
+        now = time.time()
+        for f in _bisync_cache_dir().glob("*.lck"):
+            if remote_name[:24] in f.name and now - f.stat().st_mtime > STALE_LOCK_S:
+                try:
+                    f.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return removed
+
+
 def run_bisync(remote_name: str, remote_vars: dict, remote_path: str, local_path: Path,
                 resync: bool = False, timeout_s: int = 0, provider: str = "") -> tuple[bool, str]:
     if not timeout_s:                  # the first full download of an account may take hours
@@ -170,9 +214,14 @@ def run_bisync(remote_name: str, remote_vars: dict, remote_path: str, local_path
     if provider == "dropbox":
         cmd += ["--dropbox-batch-mode", "sync"]       # many small files go up in batches
     if rclone_version() >= (1, 66):
-        cmd += ["--resilient", "--recover"]           # carry on by itself after an interrupted run
+        cmd += ["--resilient", "--recover",           # carry on by itself after an interrupted run
+                "--max-lock", "10m"]                  # and treat a lock left by a killed run as expired
     if resync:
         cmd.append("--resync")
+    global _running
+    clear_stale_locks(remote_name)
+    with _running_lock:
+        _running += 1
     try:
         env = _rclone_env()
         env.update(remote_vars)
@@ -186,6 +235,8 @@ def run_bisync(remote_name: str, remote_vars: dict, remote_path: str, local_path
     except Exception as e:
         return False, str(e)
     finally:
+        with _running_lock:
+            _running -= 1
         try:
             conf_path.unlink()
         except OSError:
