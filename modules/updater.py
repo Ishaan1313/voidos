@@ -282,6 +282,13 @@ def _install_worker(manifest: dict, user: dict):
                 shutil.move(str(live), str(backup / src.name))
             swapped.append(src.name)
             shutil.move(str(src), str(live))
+        # keep the owner's optional local clip (static/rick.mp4): an update replaces the whole static folder
+        try:
+            kept = backup / "static" / "rick.mp4"
+            if kept.is_file() and not (VOID_ROOT / "static" / "rick.mp4").exists():
+                shutil.copy2(str(kept), str(VOID_ROOT / "static" / "rick.mp4"))
+        except OSError:
+            pass
         _step("Restarting", 98)
         _audit("update_installed", user, detail=f"{old} → {manifest['version']}")
         _job.update(state="done", progress=100, version=manifest["version"],

@@ -191,6 +191,13 @@ def main():
                 shutil.move(str(live), str(backup / src.name))
             swapped.append(src.name)
             shutil.move(str(src), str(live))
+        # keep the owner's optional local clip (static/rick.mp4): an update replaces the whole static folder
+        try:
+            kept = backup / "static" / "rick.mp4"
+            if kept.is_file() and not (root / "static" / "rick.mp4").exists():
+                shutil.copy2(str(kept), str(root / "static" / "rick.mp4"))
+        except OSError:
+            pass
         (root / "tmp").mkdir(exist_ok=True)
         try:
             (root / "tmp" / ".requirements.sha256").write_text(

@@ -634,6 +634,24 @@ def _inapp_close_orphans(uid: str) -> None:
                       data={"ongoing": False})
 
 _RICK_LAST: dict = {}
+_RICK_FILE = VOID_ROOT / "static" / "rick.mp4"      # optional, supplied by the owner, git-ignored
+
+@app.before_request
+def _hide_static_rick():
+    # The clip is only served through the signed-in route below, never as a public static file.
+    if request.path.rstrip("/").lower() == "/static/rick.mp4":
+        return jsonify({"error": "Not found"}), 404
+
+@app.route("/api/easter/rick", methods=["GET", "HEAD"])
+@require_auth
+def api_easter_rick():
+    """The clock easter egg's own copy of the clip, if the owner put one at static/rick.mp4
+    (supports Range requests). 404 when there isn't one, and the page falls back to its embed."""
+    if not _RICK_FILE.is_file():
+        return jsonify({"error": "Not found"}), 404
+    resp = send_file(_RICK_FILE, mimetype="video/mp4", conditional=True)
+    resp.headers["Cache-Control"] = "private, max-age=3600"
+    return resp
 
 @app.route("/api/easter/rickroll", methods=["POST"])
 @require_auth

@@ -892,18 +892,25 @@ async function notifRefresh(){
 }
 // The clock's easter egg: the video plays inside Void OS (a popup with an embedded player), and a
 // plain-text notification follows a little later.
-function rickroll(){
+async function rickroll(){
+  // Prefer the owner's own clip (static/rick.mp4, served through /api/easter/rick); otherwise the embed.
+  let local=false;
+  try{local=(await api('/api/easter/rick',{method:'HEAD'})).ok}catch(_){}
   // No title, and no way to close it for the first eight seconds (X, Escape and the button are all held back),
   // so the video has a chance to load before anyone dismisses it.
   openMdl('',
     // Nothing of the player's own UI is reachable: controls off, keyboard off, a transparent shield over the
     // picture (no hover, no clicks, no title bar or pause button appearing), and the frame is taller than the
     // window so the strip where the player draws its title and control bar is cropped away.
+    local?`<div class="fv-rick-wrap"><video class="fv-rick fv-rick-video" src="/api/easter/rick" autoplay playsinline
+        disablepictureinpicture disableremoteplayback controlslist="nodownload noplaybackrate noremoteplayback" tabindex="-1"></video><div class="fv-rick-shield"></div></div>`:
     `<div class="fv-rick-wrap"><iframe class="fv-rick" tabindex="-1" aria-hidden="true"
       src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&controls=0&disablekb=1&fs=0&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0&playsinline=1"
       title="Video" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe><div class="fv-rick-shield"></div></div>`,
     '<button class="btn btn-g" onclick="closeMdl()">Okay, okay</button>',true);
   fvXl(true);
+  const vid=document.querySelector('video.fv-rick-video');
+  if(vid){vid.play().catch(()=>{vid.muted=true;vid.play().catch(()=>{})})}   // sound if the browser allows it
   const m=document.querySelector('.mdl');
   const x=document.getElementById('mdlX'),f=document.getElementById('mdlF');
   if(m)m.classList.add('rick');
@@ -2109,7 +2116,7 @@ function openMdl(title,body,foot='',lg=false){
   document.getElementById('mdlX').style.visibility='';document.getElementById('mdlF').style.visibility='';ovr.classList.remove('hidden')}
 function closeMdl(){if(App.mdlLockUntil>Date.now())return;     // a popup may hold itself open for a moment (the clock easter egg)
   ovr.classList.add('hidden');document.querySelectorAll('#mdlB audio,#mdlB video').forEach(m=>{try{m.pause()}catch(e){}});
-  document.querySelectorAll('#mdlB iframe.fv-rick').forEach(f=>f.remove())}
+  document.querySelectorAll('#mdlB iframe.fv-rick,#mdlB video.fv-rick').forEach(f=>f.remove())}
 // The single shared confirm popover instance (see CSS comment above for why
 // this is one reused element positioned per-call, not per-button markup).
 let _vcPopEl=null,_vcCloseTimer=null,_vcAnchorEl=null;

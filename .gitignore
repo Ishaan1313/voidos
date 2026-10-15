@@ -45,3 +45,6 @@ app_catalog/
 # Maintainer notes: not part of the public repository
 HANDOFF.md
 CATALOG_PROMPT.md
+
+# The owner's optional local clip for the clock easter egg (never committed or shipped)
+static/rick.mp4

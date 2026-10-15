@@ -1959,6 +1959,7 @@ code,pre,kbd,.path,.toast-ref,.notif-time code,.ip-spoiler-text,.mono{font-famil
 .fv-rick-wrap{position:relative;width:100%;aspect-ratio:16/9;max-height:70vh;border-radius:10px;overflow:hidden;background:#000}
 .fv-rick{position:absolute;left:0;top:-72px;width:100%;height:calc(100% + 144px);border:0;pointer-events:none}
 .fv-rick-shield{position:absolute;inset:0;z-index:2;cursor:default;background:transparent}
+.fv-rick.fv-rick-video{top:0;height:100%;object-fit:contain;background:#000}
 /* The sidebar is solid while it is expanded, so nothing underneath (the Intercom bar, page titles) shows through it */
 .sidebar:hover,.sidebar.open{background:var(--bg)}
 /* the clock easter egg popup: just the video, no title bar while it is held open */
