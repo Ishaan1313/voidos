@@ -4121,16 +4121,16 @@ function fvAudio(box,src,name){
     g.globalCompositeOperation='lighter';
     const layers=[{f:1.6,s:1.0,p:0,a:1.0,c:0},{f:2.3,s:-1.3,p:1.7,a:.75,c:1},{f:3.1,s:.8,p:3.1,a:.55,c:2},{f:1.1,s:-.6,p:4.6,a:.9,c:3}];
     layers.forEach((L,li)=>{
-      g.beginPath();g.moveTo(0,H);
+      const line=new Path2D();
       for(let x=0;x<=W;x+=6){
         const u=x/W,env=Math.sin(Math.PI*u);              // quiet at the edges, full in the middle
         const y=H*0.58-(Math.sin(u*Math.PI*2*L.f+t*L.s+L.p)*0.5+Math.sin(u*Math.PI*3.7*L.f-t*L.s*.7)*0.25)*H*(0.12+lvl*.5)*L.a*env-lvl*H*.12*env;
-        g.lineTo(x,y);
+        x?line.lineTo(x,y):line.moveTo(x,y);
       }
-      g.lineTo(W,H);g.closePath();
+      const area=new Path2D(line);area.lineTo(W,H);area.lineTo(0,H);area.closePath();   // the fill closes at the bottom; the stroke is only the wave
       const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,colors[L.c]);gr.addColorStop(1,'rgba(0,0,0,0)');
-      g.globalAlpha=0.38;g.fillStyle=gr;g.fill();
-      g.globalAlpha=0.85;g.lineWidth=1.6;g.strokeStyle=colors[L.c];g.stroke();
+      g.globalAlpha=0.38;g.fillStyle=gr;g.fill(area);
+      g.globalAlpha=0.85;g.lineWidth=1.6;g.strokeStyle=colors[L.c];g.stroke(line);
     });
     g.globalAlpha=1;g.globalCompositeOperation='source-over';
   };
