@@ -6401,11 +6401,11 @@ function showClearAuditDlg(){
   openMdl('Clear Audit Log',`
     <div class="fg"><label class="fgl">Scope</label>
       <div class="seg" id="caScopeSeg">
-        <button class="seg-btn active" data-scope="partial" type="button">Older than\u2026</button>
-        <button class="seg-btn" data-scope="all" type="button">Everything</button>
+        <button class="seg-btn active" data-scope="all" type="button">Everything</button>
+        <button class="seg-btn" data-scope="partial" type="button">Only older entries\u2026</button>
       </div>
     </div>
-    <div class="fg" id="caWindowRow"><label class="fgl">Keep entries from the last</label>
+    <div class="fg" id="caWindowRow" style="display:none"><label class="fgl">Keep entries from the last</label>
       <select class="fgi" id="caWindow">
         <option value="1">1 day</option>
         <option value="7">7 days</option>
@@ -6418,7 +6418,7 @@ function showClearAuditDlg(){
       <input class="fgi" id="caConfirm" placeholder="${CLEAR_AUDIT_PHRASE}" autocomplete="off" spellcheck="false"/></div>`,
     `<button class="btn btn-g" onclick="closeMdl()">Cancel</button><button class="btn btn-d" id="caGoBtn" disabled>Clear log</button>`);
   enhanceSelect(document.getElementById('caWindow'));
-  let scope='partial';
+  let scope='all';
   const goBtn=document.getElementById('caGoBtn'),confirmInp=document.getElementById('caConfirm'),windowRow=document.getElementById('caWindowRow');
   confirmInp.addEventListener('input',()=>{goBtn.disabled=confirmInp.value!==CLEAR_AUDIT_PHRASE});
   document.getElementById('caScopeSeg')?.addEventListener('click',e=>{
@@ -6437,7 +6437,8 @@ function showClearAuditDlg(){
     const r=await(await api('/api/audit/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
     if(r.error){errToast(r);return}
     closeMdl();
-    toast(`Cleared ${r.removed} entr${r.removed===1?'y':'ies'}`,'success');
+    if(r.removed===0)toast('Nothing was old enough to remove. Choose \u201cEverything\u201d to clear the whole log.','warning');
+    else toast(`Cleared ${r.removed} entr${r.removed===1?'y':'ies'}`,'success');
     loadAuditLog();
   });
 }
