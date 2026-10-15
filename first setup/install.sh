@@ -715,9 +715,9 @@ if [[ $NO_START == 1 ]]; then info "Skipped (--no-start)"
 elif [[ $SERVICE_OK == 1 && $OS == Linux ]]; then
   as_root systemctl restart "$SERVICE"
   if run "Waiting for Void OS to answer" H wait-health "$PORT" 60; then STARTED=1
-  else warn "Void OS didn't come up — see: sudo journalctl -u $SERVICE -n 50"; fi
+  else warn "Void OS didn't come up — see: ${CTL:-voidos} logs 50"; fi
 elif [[ $SERVICE_OK == 1 ]]; then
-  run "Waiting for Void OS to answer" H wait-health "$PORT" 60 && STARTED=1 || warn "Void OS didn't come up — see $VOIDOS_DIR/voidos.log"
+  run "Waiting for Void OS to answer" H wait-health "$PORT" 60 && STARTED=1 || warn "Void OS didn't come up — see: ${CTL:-voidos} logs 50"
 else
   info "Start it with:  ${C}cd \"$VOIDOS_DIR\" && .venv/bin/python voidos.py${R}"
 fi
@@ -744,7 +744,7 @@ if [[ -n $CTL ]]; then
   [[ $CTL != /usr/local/bin/voidos ]] && line "   ${D}(installed in ${CTL%/*} — add it to your PATH if 'voidos' isn't found)${R}"
 elif [[ $SERVICE_OK == 1 && $OS == Linux ]]; then
   line "${D}Status   ${R}sudo systemctl status $SERVICE"
-  line "${D}Logs     ${R}sudo journalctl -u $SERVICE -f"
+  line "${D}Logs     ${R}${CTL:-voidos} logs"
   line "${D}Restart  ${R}sudo systemctl restart $SERVICE"
 fi
 line "${D}Settings ${R}$VOIDOS_DIR/.env ${D}(see \"first setup/.env.example\" for every option)${R}"

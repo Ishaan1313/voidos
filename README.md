@@ -1188,7 +1188,7 @@ looking empty.
 |---|---|
 | Installer failed | `install.log` in the Void OS folder |
 | An error with a reference code | Access Control → Error Log, search the code |
-| Won't start (Linux service) | `voidos logs 100` (or `sudo journalctl -u voidos -n 100`) |
+| Won't start (Linux service) | `voidos logs 100` (tidy output; `voidos logs --raw 100` for the plain journal) |
 | Won't start (Windows) | Start menu → Void OS → **Start Void OS** shows its window |
 | A feature says something is missing | the message names the package or tool to install |
 | Who did what, when | Access Control → Activity Log |
