@@ -893,12 +893,25 @@ async function notifRefresh(){
 // The clock's easter egg: the video plays inside Void OS (a popup with an embedded player), and a
 // plain-text notification follows a little later.
 function rickroll(){
-  openMdl('\u{1F3B5} You\u2019ve been rickrolled',
+  // No title, and no way to close it for the first five seconds (X, Escape and the button are all held back),
+  // so the video has a chance to load before anyone dismisses it.
+  openMdl('',
     `<div class="fv-rick-wrap"><iframe class="fv-rick" src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&playsinline=1"
-      title="Rick Astley" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>`,
+      title="Video" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>`,
     '<button class="btn btn-g" onclick="closeMdl()">Okay, okay</button>',true);
   fvXl(true);
-  setTimeout(()=>{api('/api/easter/rickroll',{method:'POST'}).catch(()=>{})},5000);
+  const m=document.querySelector('.mdl');
+  const x=document.getElementById('mdlX'),f=document.getElementById('mdlF');
+  if(m)m.classList.add('rick');
+  if(x)x.style.visibility='hidden';
+  if(f)f.style.visibility='hidden';
+  App.mdlLockUntil=Date.now()+5000;
+  setTimeout(()=>{
+    App.mdlLockUntil=0;
+    if(x)x.style.visibility='';if(f)f.style.visibility='';
+    if(m)m.classList.remove('rick');
+    api('/api/easter/rickroll',{method:'POST'}).catch(()=>{});
+  },5000);
 }
 function notifIncoming(item){
   if(_notifs.some(n=>n.id===item.id))return;
@@ -2078,8 +2091,10 @@ document.getElementById('mdlX')?.addEventListener('click',closeMdl);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMdl()});
 function openMdl(title,body,foot='',lg=false){
   document.getElementById('mdlT').textContent=title;document.getElementById('mdlB').innerHTML=body;
-  document.getElementById('mdlF').innerHTML=foot;mdl.classList.toggle('lg',!!lg);mdl.classList.remove('xl');ovr.classList.remove('hidden')}
-function closeMdl(){ovr.classList.add('hidden');document.querySelectorAll('#mdlB audio,#mdlB video').forEach(m=>{try{m.pause()}catch(e){}});
+  document.getElementById('mdlF').innerHTML=foot;mdl.classList.toggle('lg',!!lg);mdl.classList.remove('xl','rick');App.mdlLockUntil=0;
+  document.getElementById('mdlX').style.visibility='';document.getElementById('mdlF').style.visibility='';ovr.classList.remove('hidden')}
+function closeMdl(){if(App.mdlLockUntil>Date.now())return;     // a popup may hold itself open for a moment (the clock easter egg)
+  ovr.classList.add('hidden');document.querySelectorAll('#mdlB audio,#mdlB video').forEach(m=>{try{m.pause()}catch(e){}});
   document.querySelectorAll('#mdlB iframe.fv-rick').forEach(f=>f.remove())}
 // The single shared confirm popover instance (see CSS comment above for why
 // this is one reused element positioned per-call, not per-button markup).
