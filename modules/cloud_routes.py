@@ -181,6 +181,7 @@ def api_cloud_callback(provider):
     u = next((x for x in users if x["id"] == payload["uid"]), None)
     if u:
         _audit("cloud_connected", u, detail=provider)
+        _auto_sync_account(u, provider)           # the account becomes a folder in My Files, kept in sync
     return redirect("/?cloud_connected=" + provider + "#settings")
 
 @app.route("/api/cloud/<provider>/disconnect", methods=["POST"])
@@ -197,6 +198,14 @@ def api_cloud_disconnect(provider):
         _sync_stop_supervisor(p["id"])
         _sync_status.pop(p["id"], None)
     _cloud_set_token(user["id"], provider, None)
+    with _sync_lock:                              # reconnecting later sets the folder up again
+        try:
+            done = json.loads(_AUTO_SYNC_FILE.read_text(encoding="utf-8"))
+            if isinstance(done, list) and f"{user['id']}:{provider}" in done:
+                done.remove(f"{user['id']}:{provider}")
+                _atomic_write_json(_AUTO_SYNC_FILE, done)
+        except (OSError, ValueError):
+            pass
     _audit("cloud_disconnected", user, detail=provider)
     return jsonify({"ok": True})
 
@@ -401,6 +410,69 @@ def _sync_stop_supervisor(pair_id: str) -> None:
     if sup:
         sup.stop()
 
+_AUTO_SYNC_FILE = CLOUD_SYNC_FILE.with_name("cloud_autosync.json")   # "user:provider" already offered once
+
+def _auto_sync_account(user: dict, provider: str) -> None:
+    """Connecting an account sets up two-way sync of the whole account into a folder in My Files
+    ("Dropbox" / "Google Drive"), like the desktop apps. Done once per account: if the person later
+    turns the sync off, it stays off until they reconnect. Never raises; sync failures are reported
+    through the normal sync notices."""
+    key = f"{user['id']}:{provider}"
+    try:
+        with _sync_lock:
+            try:
+                done = json.loads(_AUTO_SYNC_FILE.read_text(encoding="utf-8"))
+                done = done if isinstance(done, list) else []
+            except (OSError, ValueError):
+                done = []
+            if key in done:
+                return
+            pairs = _sync_pairs_load()
+            if any(p.get("user_id") == user["id"] and p.get("provider") == provider and p.get("entire") for p in pairs):
+                return
+            ok, msg = cloud_sync.check_rclone()
+            if not ok:
+                _inapp_notify(user["id"], "Sync isn't available yet", msg[:300], level="warning", kind="sync", link="settings")
+                return
+            cfg = _cloud_provider_config(provider)
+            tok = _cloud_get_token(user["id"], provider)
+            if not cfg or not tok:
+                return
+            label = "Dropbox" if provider == "dropbox" else "Google Drive"
+            local_abs = _safe(f"{USERS_REL}/{user['username']}/{label}", user)
+            local_abs.mkdir(parents=True, exist_ok=True)
+            tok = cloud_storage.ensure_fresh(provider, cfg[0], cfg[1], tok)
+            _cloud_set_token(user["id"], provider, tok)
+            if provider == "dropbox":
+                try:
+                    sp = cloud_sync.dbx_space(tok["access_token"])
+                    free = shutil.disk_usage(str(local_abs)).free
+                    if sp["used"] and sp["used"] + int(MIN_FREE_MB) * 1024 * 1024 > free:
+                        gb = lambda n: f"{n / 1024 ** 3:.1f} GB"
+                        _inapp_notify(user["id"], f"{label} won't fit",
+                                      f"Your {label} holds {gb(sp['used'])} but only {gb(free)} is free here. "
+                                      f"Free up space, then turn on sync in Settings.", level="error", kind="sync", link="settings")
+                        done.append(key)
+                        _atomic_write_json(_AUTO_SYNC_FILE, done)
+                        return
+                except Exception:
+                    pass
+            pair = {"id": str(uuid.uuid4()), "user_id": user["id"], "provider": provider,
+                    "remote_name": f"voidos_{provider}_{user['id'][:8]}", "remote_path": "",
+                    "local_path": local_abs.relative_to(FILE_ROOT).as_posix(),
+                    "interval_s": 300, "enabled": True, "resynced": False, "live": True, "entire": True,
+                    "created_at": datetime.now(timezone.utc).isoformat()}
+            pairs.append(pair)
+            _sync_pairs_save(pairs)
+            done.append(key)
+            _atomic_write_json(_AUTO_SYNC_FILE, done)
+        _sync_start_supervisor(pair)
+        _audit("cloud_sync_enabled", user, target=pair["local_path"], detail=f"{provider} <-> / (automatic)")
+        _inapp_notify(user["id"], f"{label} is syncing", f"Everything in your {label} is being copied to "
+                      f"My Files / {label} and kept in step both ways.", level="success", kind="sync", link="files")
+    except Exception as e:
+        app.logger.warning(f"Automatic {provider} sync setup failed for {user.get('username')}: {e}")
+
 def _restore_sync_pairs_on_boot() -> None:
     """Called once at startup (see bottom of file) — restarts every
     previously-enabled sync pair's background loop, same idea as the app
@@ -411,6 +483,14 @@ def _restore_sync_pairs_on_boot() -> None:
                 _sync_start_supervisor(pair)
             except Exception as e:
                 app.logger.warning(f"Failed to restore sync pair {pair.get('id')}: {e}")
+    try:                                           # accounts connected before this existed get it once
+        toks = _cloud_tokens_load()
+        for u in _users_load():
+            for prov in cloud_storage.PROVIDERS:
+                if (toks.get(u["id"]) or {}).get(prov):
+                    threading.Thread(target=_auto_sync_account, args=(u, prov), daemon=True).start()
+    except Exception as e:
+        app.logger.warning(f"Couldn't check accounts for automatic sync: {e}")
     # Older versions kept each user's login token in an rclone config file
     # (<app>/rclone_conf, briefly tmp/rclone_conf). Nothing needs those now.
     for legacy in (VOID_ROOT / "rclone_conf", TMP_DIR / "rclone_conf"):
