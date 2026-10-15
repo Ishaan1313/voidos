@@ -35,7 +35,7 @@ from modules.config import (
     SESSION_HRS, SHARED_REL, TERM_EN, USERS_REL, VOID_ROOT,
 )
 from modules.activity import (
-    INAPP_FILE, MAJOR_EVENTS, _NOTIFY_DEFAULTS, _audit, _inapp_load, _inapp_lock,
+    INAPP_FILE, MAJOR_EVENTS, _NOTIFY_DEFAULTS, _audit, _inapp_load, _inapp_lock, _inapp_notify,
     _notify_dispatch, _notify_load, _notify_lock, _notify_record, _notify_save,
     _notify_status_load,
 )
@@ -632,6 +632,23 @@ def _inapp_close_orphans(uid: str) -> None:
         _inapp_update(uid, nid, title="Installation was interrupted", level="error", read=False,
                       body="Void OS restarted before this finished. Check the app in the App Store and try again.",
                       data={"ongoing": False})
+
+_RICK_LAST: dict = {}
+
+@app.route("/api/easter/rickroll", methods=["POST"])
+@require_auth
+def api_easter_rickroll():
+    """The clock's easter egg (spam-click it 13 times): one notification that rickrolls again.
+    Fixed text and link, at most one per minute per account."""
+    user = _current_user()
+    now = time.time()
+    if now - _RICK_LAST.get(user["id"], 0) < 60:
+        return jsonify({"ok": True})
+    _RICK_LAST[user["id"]] = now
+    _inapp_notify(user["id"], "You just got rickrolled", "Never gonna give you up. Tap to watch it again.",
+                  level="info", kind="easter",
+                  data={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
+    return jsonify({"ok": True})
 
 @app.route("/api/notifications/read", methods=["POST"])
 @require_auth

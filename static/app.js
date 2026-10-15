@@ -890,6 +890,12 @@ async function notifRefresh(){
   try{const r=await api('/api/notifications');if(!r.ok)return;const d=await r.json();
     _notifs=d.items||[];_notifUnread=d.unread||0;notifBadges();if(_notifPanel)notifRenderList()}catch(_){}
 }
+const RICK_URL='https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+function rickroll(notify){
+  try{window.open(RICK_URL,'_blank','noopener,noreferrer')}catch(_){}
+  if(notify)setTimeout(()=>{api('/api/easter/rickroll',{method:'POST'}).catch(()=>{})},4000);
+}
+function notifOpenUrl(it){const u=(it&&it.data&&it.data.url)||'';if(u===RICK_URL)rickroll(false)}
 function notifIncoming(item){
   if(_notifs.some(n=>n.id===item.id))return;
   _notifs.unshift(item);_notifs=_notifs.slice(0,100);
@@ -898,7 +904,7 @@ function notifIncoming(item){
   if((item.data||{}).ongoing){appJobFromNotif(item);return}   // an install in progress: no toast, the tray shows it
   // Transfers already toast from the tray; everything else gets a toast too.
   if(item.kind!=='files')toast(item.title,item.level==='success'?'success':item.level,{hint:item.body||undefined,ref:item.ref||undefined,
-    action:item.link?{label:'Open',fn:()=>go(item.link)}:undefined});
+    action:item.link?{label:'Open',fn:()=>go(item.link)}:((item.data||{}).url===RICK_URL?{label:'Watch',fn:()=>rickroll(false)}:undefined)});
 }
 // An existing notification changed (a progress bar moved, "Installing" became "Installed").
 function notifUpdate(item){
@@ -950,7 +956,8 @@ function notifToggle(anchor){
     if(del){await api('/api/notifications?id='+encodeURIComponent(del),{method:'DELETE'});
       const was=_notifs.find(n=>n.id===del);_notifs=_notifs.filter(n=>n.id!==del);if(was&&!was.read)_notifUnread--;notifBadges();notifRenderList();return}
     const it=e.target.closest('.notif-item');
-    if(it){notifMarkRead([it.dataset.id]);if(it.dataset.link){notifClose();go(it.dataset.link)}}
+    if(it){notifMarkRead([it.dataset.id]);if(it.dataset.link){notifClose();go(it.dataset.link)}
+      else notifOpenUrl(_notifs.find(n=>n.id===it.dataset.id))}
   });
   // Opening the panel counts as having seen what's in it (after a moment).
   setTimeout(()=>{if(_notifPanel===p&&_notifUnread)notifMarkRead()},2500);
@@ -2296,7 +2303,15 @@ const HsClock=(()=>{
     const rel=e=>{const r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
     cv.addEventListener('pointermove',e=>{[mx,my]=rel(e)});
     cv.addEventListener('pointerleave',()=>{mx=my=-9999});
-    cv.addEventListener('pointerdown',e=>{[mx,my]=rel(e);burst()});
+    // Easter egg: spam the clock 13 times (each press within a second and a half of the last) and
+    // you get rickrolled; a notification then rickrolls you once more.
+    let taps=0,lastTap=0;
+    cv.addEventListener('pointerdown',e=>{
+      [mx,my]=rel(e);burst();
+      const now=Date.now();
+      taps=now-lastTap<1500?taps+1:1;lastTap=now;
+      if(taps>=13){taps=0;rickroll(true)}
+    });
     const go=()=>{if(cv&&!raf)raf=requestAnimationFrame(frame)};
     if(document.fonts&&document.fonts.load){
       Promise.race([document.fonts.load('600 40px Orbitron','0123456789:'),new Promise(r=>setTimeout(r,1500))]).then(go,go);
