@@ -2349,6 +2349,7 @@ const HsClock=(()=>{
   return {mount};
 })();
 function rDash(){
+  _okSeed=Math.random();                  // a fresh status line each time the dashboard is opened
   const root=document.getElementById('vroot');
   const hs=!!document.querySelector('.shell.hs');
   _cpuHist=[];
@@ -2435,7 +2436,35 @@ function _dashStatus(d){
   if(d.temp!=null&&d.temp>=80)return['warn',`The server is running hot (${Math.round(d.temp)}\u00b0C). Check its cooling.`];
   const pw=_powerInfo(d.power);
   if(pw&&pw.lvl!=='ok')return[pw.lvl==='bad'?'bad':'warn',pw.sentence];
-  return['ok',files?`Everything\u2019s running. ${fmtB(files.free)} free on ${where}.`:'Everything\u2019s running.'];
+  return['ok',_okMessage(d,files,where)];
+}
+// The line shown when nothing needs attention. One is picked per visit to the dashboard (so it doesn't
+// flicker on every refresh) from a pool; each entry is built from live numbers and returns null when
+// the number it needs isn't available, in which case the plain message is used.
+let _okSeed=Math.random();
+const _OK_POOL=[
+  (c)=>c.files?`Everything\u2019s running. ${fmtB(c.files.free)} free on ${c.where}.`:null,
+  (c)=>c.up?`All quiet. ${c.up}, and not a single complaint.`:null,
+  (c)=>c.cpu!=null&&c.cpu<50?`Smooth sailing \u2014 the processor is at ${Math.round(c.cpu)}% and has barely noticed you.`:null,
+  (c)=>c.files&&c.files.percent<70?`${fmtB(c.files.free)} of breathing room on ${c.where}. Go wild.`:null,
+  (c)=>c.temp!=null&&c.temp<65?`Cool and calm at ${Math.round(c.temp)}\u00b0C. Your server is a happy server.`:null,
+  (c)=>c.apps?`${c.apps} app${c.apps===1?'':'s'} one click away, and everything behind ${c.apps===1?'it':'them'} is awake.`:null,
+  (c)=>c.ram!=null&&c.ram<70?`Memory at ${Math.round(c.ram)}% \u2014 plenty of headroom, no drama.`:null,
+  (c)=>c.hour<5?'Burning the midnight oil? The server is up too, and perfectly healthy.':null,
+  (c)=>c.hour>=5&&c.hour<12?'Good morning. The server already had its coffee \u2014 all systems go.':null,
+  (c)=>c.hour>=12&&c.hour<18?'Afternoon check-in: nothing is on fire. Carry on.':null,
+  (c)=>c.hour>=18?'Winding down? Everything here is running fine \u2014 you can relax.':null,
+  (c)=>c.up&&c.files?`${c.up} without a hiccup, with ${fmtB(c.files.free)} to spare.`:null,
+  ()=>'Nothing needs your attention. Enjoy the quiet.',
+  ()=>'Your files, your hardware, your rules \u2014 and everything is running.',
+  (c)=>c.cpu!=null&&c.ram!=null&&c.cpu<80&&c.ram<85?`Healthy: CPU ${Math.round(c.cpu)}%, memory ${Math.round(c.ram)}%. Nothing to fix.`:null,
+];
+function _okMessage(d,files,where){
+  const c={files,where,cpu:d.cpu,ram:d.ram&&d.ram.percent,temp:d.temp,hour:new Date().getHours(),
+           up:d.uptime?_uptimeWords(d.uptime):'',apps:(typeof _hsApps!=='undefined'&&_hsApps||[]).length};
+  if(c.up==='Just started')c.up='';
+  const first=_OK_POOL[Math.floor(_okSeed*_OK_POOL.length)](c);
+  return first||_OK_POOL[0](c)||'Everything\u2019s running.';
 }
 // Power: what the Pi's firmware says about its supply, or the laptop's battery. Null when the
 // machine has neither (a desktop PC or a server on mains), and then the row stays hidden.
