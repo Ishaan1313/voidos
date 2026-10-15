@@ -1105,6 +1105,18 @@ repository that's checked is fixed in the code (`UPDATE_REPO` in
 install can't be pointed at some other source of "updates". It must be public;
 pre-releases and drafts are ignored.
 
+**Update from the command line.** `first setup/update.py` updates an install without the in-app
+updater (versions 1.0.0 to 1.0.3 fail on *Install* with "HTTP Error 415"). It checks the SHA-256,
+backs up the program files, swaps them, installs the packages and never touches `.env` or your data:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Ishaan1313/voidos/main/first%20setup/update.py | ~/voidos/.venv/bin/python -
+```
+```powershell
+irm https://raw.githubusercontent.com/Ishaan1313/voidos/main/first%20setup/update.py | & "$env:USERPROFILEoidos\.venv\Scripts\python.exe" -
+```
+Add `--check` to only see what is available. Then restart Void OS (`voidos restart`).
+
 **What an install downloads:** an attached zip named like `voidos-1.2.0.zip` if
 the release has one (and if GitHub shows a SHA-256 for it, the download must
 match), otherwise GitHub's automatic *Source code (zip)* for the tag. Either way

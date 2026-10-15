@@ -211,7 +211,10 @@ def _install_worker(manifest: dict, user: dict):
         _step("Downloading", 2)
         zpath = work / "release.zip"
         h = hashlib.sha256()
-        with _github_get(manifest["url"], accept="application/octet-stream", timeout=30) as r, open(zpath, "wb") as out:
+        # "application/octet-stream" is what GitHub wants for a release ASSET; its source-zip endpoint
+        # (api.github.com/.../zipball/<tag>) answers that header with 415 Unsupported Media Type.
+        accept = "application/octet-stream" if manifest.get("source") == "asset" else "application/vnd.github+json"
+        with _github_get(manifest["url"], accept=accept, timeout=30) as r, open(zpath, "wb") as out:
             total = int(r.headers.get("Content-Length") or 0)
             got = 0
             while True:

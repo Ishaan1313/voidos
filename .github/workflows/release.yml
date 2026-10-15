@@ -5,7 +5,7 @@
 # the last release. Installs then see it under Settings > Updates (the updater needs the tag to
 # equal the number in VERSION, which this guarantees because the tag is built from VERSION).
 #
-# It never moves or deletes an existing tag or release: if v<VERSION> already exists it does nothing.
+# It never moves or deletes an existing tag or release. It attaches voidos-<VERSION>.zip to the release.
 name: Publish release
 
 on:
@@ -38,28 +38,27 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Skip when this release already exists
-        id: exists
+      - name: Build the release zip
         env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.v.outputs.tag }}
+          VERSION: ${{ steps.v.outputs.version }}
         run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; nothing to do."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
+          # An attached zip (not GitHub's automatic source zip) is what installs download: it carries a
+          # SHA-256 they verify, and the in-app updater of older versions can only fetch assets.
+          git archive --format=zip --prefix="voidos-$VERSION/" -o "voidos-$VERSION.zip" HEAD             -- . ':(exclude)docs' ':(exclude).github'
+          ls -l "voidos-$VERSION.zip"
 
-      - name: Create the release
-        if: steps.exists.outputs.skip != 'true'
+      - name: Create the release (or add the zip to an existing one)
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.v.outputs.tag }}
           VERSION: ${{ steps.v.outputs.version }}
         run: |
-          gh release create "$TAG" \
-            --target "$GITHUB_SHA" \
-            --title "Void OS $VERSION" \
-            --generate-notes \
-            --latest
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if gh release view "$TAG" --json assets -q '.assets[].name' | grep -qx "voidos-$VERSION.zip"; then
+              echo "Release $TAG already has its zip; nothing to do."
+            else
+              gh release upload "$TAG" "voidos-$VERSION.zip"
+            fi
+          else
+            gh release create "$TAG" "voidos-$VERSION.zip"               --target "$GITHUB_SHA"               --title "Void OS $VERSION"               --generate-notes               --latest
+          fi
