@@ -1894,16 +1894,17 @@ code,pre,kbd,.path,.toast-ref,.notif-time code,.ip-spoiler-text,.mono{font-famil
   background:rgba(var(--pu-rgb),.06);display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .sync-whole[hidden]{display:none}
 
-/* A synced cloud folder (Dropbox / Google Drive) while it is syncing: its icon pulses with a small
-   spinner on the corner, and the sidebar tile's icon spins. */
+/* A synced cloud folder (Dropbox / Google Drive) while it is syncing. The folder art itself is left alone;
+   a small solid badge with a spinning ring sits on its corner (and on the right of the sidebar tile), so it
+   reads the same on every theme and never blends into the picture behind it. */
 @keyframes cloud-spin{to{transform:rotate(360deg)}}
-@keyframes cloud-pulse{50%{opacity:.55}}
-.fitem.syncing .ficon{position:relative;animation:cloud-pulse 1.6s ease-in-out infinite}
-.fitem.syncing .ficon::after{content:"";position:absolute;right:-4px;bottom:-2px;width:11px;height:11px;border-radius:50%;
-  border:2px solid var(--pu);border-top-color:transparent;animation:cloud-spin .9s linear infinite}
-.fs-item.syncing svg{animation:cloud-spin 1.2s linear infinite;color:var(--pu)}
-.fs-item.syncing{color:var(--pu)}
-@media(prefers-reduced-motion:reduce){.fitem.syncing .ficon,.fitem.syncing .ficon::after,.fs-item.syncing svg{animation:none}}
+.fitem.syncing .ficon{position:relative}
+.fitem.syncing .ficon::after{content:"";position:absolute;right:-6px;bottom:-4px;width:18px;height:18px;box-sizing:border-box;border-radius:50%;
+  background:var(--sf2);border:2px solid var(--bd2);border-top-color:var(--ps);border-right-color:var(--ps);
+  box-shadow:0 0 0 2px var(--bg),0 2px 8px rgba(0,0,0,.35);animation:cloud-spin .9s linear infinite}
+.fs-item.syncing::after{content:"";margin-left:auto;flex-shrink:0;width:15px;height:15px;box-sizing:border-box;border-radius:50%;
+  border:2px solid var(--bd2);border-top-color:var(--ps);border-right-color:var(--ps);animation:cloud-spin .9s linear infinite}
+@media(prefers-reduced-motion:reduce){.fitem.syncing .ficon::after,.fs-item.syncing::after{animation:none}}
 .user-avatar.app-ico img{width:72%;height:72%;object-fit:contain;border-radius:6px}
 
 /* File viewer: roomy popup for pictures, video, PDFs and Office documents (capped, never full-bleed) */
