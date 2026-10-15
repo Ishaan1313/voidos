@@ -835,7 +835,7 @@ function xferFinished(j){
     const touched=new Set([j.dest_dir,...(j.src_dirs||[])].filter(x=>x!=null));
     if(touched.has(App.curP||'')||j.op==='trash'||j.op==='delete')rFiles(App.curP);
   }
-  if((j.op==='empty_trash'||j.op==='trash')&&document.getElementById('emptyTrashBtn'))loadTrash();
+  if((j.op==='empty_trash'||j.op==='trash'||j.op==='delete')&&document.getElementById('emptyTrashBtn')&&window.loadTrash)window.loadTrash();
 }
 // Fallback polling, only while something's running and pushes have gone quiet.
 function xferEnsurePolling(){
@@ -3707,6 +3707,7 @@ async function loadTrash(){
     });
   }catch(e){document.getElementById('mdlB').innerHTML=`<div style="color:var(--rd)">${esc(e.message)}</div>`}
 }
+window.loadTrash=loadTrash;     // xferFinished() lives outside this scope and refreshes the open Recycle Bin with it
 function trashRow(it){
   return `<div class="user-row" id="trrow-${it.id}">
     <div class="user-avatar avatar-guest">${ficons[it.type]||'\u{1F4C4}'}</div>

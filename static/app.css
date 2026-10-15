@@ -10,8 +10,11 @@ a{color:var(--ps);text-underline-offset:2px}
 button:focus-visible,.gh-switch input:focus-visible+.gh-slider,.toggle input:focus-visible+.toggle-sl,
 .panic-switch-input:focus-visible+.panic-switch,a:focus-visible{
   outline:2px solid var(--pu);outline-offset:2px;border-radius:4px}
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-thumb{background:var(--pd);border-radius:3px}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--pd);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--ps)}
+*{scrollbar-width:thin;scrollbar-color:var(--pd) transparent}   /* the standard properties: Chromium 121+ and Firefox ignore the ::-webkit rules once any scrollbar-* is set */
 .blobs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
 .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.3;mix-blend-mode:screen;
   will-change:transform;backface-visibility:hidden;transform:translateZ(0)}
@@ -1961,5 +1964,5 @@ code,pre,kbd,.path,.toast-ref,.notif-time code,.ip-spoiler-text,.mono{font-famil
 .mdl.rick .mhdr{visibility:hidden}
 /* Activity log and Error log: a bounded box that scrolls inside itself, so the page doesn't become hundreds of rows tall */
 .log-box{max-height:min(560px,62vh);overflow-y:auto;overscroll-behavior:contain;border:1px solid var(--bd);border-radius:12px;
-  background:rgba(var(--ov-rgb),.02);scrollbar-width:thin}
+  background:rgba(var(--ov-rgb),.02)}
 .log-box>.audit-row:first-child,.log-box>.err-row:first-child{border-top:0}
