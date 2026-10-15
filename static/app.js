@@ -3169,9 +3169,15 @@ async function initFilesSidebar(path){
     cloudEl.innerHTML=configured.length?`<div class="fs-title" style="margin-top:10px">Cloud</div>`+configured.map(p=>
       `<div class="fs-item" data-cloud="${p.id}"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>${esc(p.label)}${p.connected?'':' <span style="opacity:.55;font-size:11px;margin-left:auto">Connect</span>'}</div>`
     ).join(''):'';
+    // A synced account opens its folder in My Files; the import browser lives in Settings > Storage & cloud.
+    const synced={};
+    await Promise.all(configured.filter(p=>p.connected).map(async p=>{
+      try{const pairs=await apiData(`/api/cloud/${p.id}/sync`);const w=pairs.find(x=>x.entire&&x.enabled);if(w)synced[p.id]=w.local_path}catch(e){}
+    }));
     cloudEl.querySelectorAll('[data-cloud]').forEach(el=>{
       const p=configured.find(x=>x.id===el.dataset.cloud);
-      el.onclick=()=>p.connected?browseCloud(p.id,p.label):connectCloud(p.id);
+      el.onclick=()=>synced[p.id]?rFiles(synced[p.id]):p.connected?go('settings'):connectCloud(p.id);
+      if(synced[p.id]&&(path===synced[p.id]||path.startsWith(synced[p.id]+'/')))el.classList.add('active');
     });
   }catch(e){}
   const usage=document.getElementById('fsUsage');
