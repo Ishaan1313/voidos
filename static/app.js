@@ -890,12 +890,16 @@ async function notifRefresh(){
   try{const r=await api('/api/notifications');if(!r.ok)return;const d=await r.json();
     _notifs=d.items||[];_notifUnread=d.unread||0;notifBadges();if(_notifPanel)notifRenderList()}catch(_){}
 }
-const RICK_URL='https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-function rickroll(notify){
-  try{window.open(RICK_URL,'_blank','noopener,noreferrer')}catch(_){}
-  if(notify)setTimeout(()=>{api('/api/easter/rickroll',{method:'POST'}).catch(()=>{})},4000);
+// The clock's easter egg: the video plays inside Void OS (a popup with an embedded player), and a
+// plain-text notification follows a little later.
+function rickroll(){
+  openMdl('\u{1F3B5} You\u2019ve been rickrolled',
+    `<div class="fv-rick-wrap"><iframe class="fv-rick" src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&playsinline=1"
+      title="Rick Astley" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>`,
+    '<button class="btn btn-g" onclick="closeMdl()">Okay, okay</button>',true);
+  fvXl(true);
+  setTimeout(()=>{api('/api/easter/rickroll',{method:'POST'}).catch(()=>{})},5000);
 }
-function notifOpenUrl(it){const u=(it&&it.data&&it.data.url)||'';if(u===RICK_URL)rickroll(false)}
 function notifIncoming(item){
   if(_notifs.some(n=>n.id===item.id))return;
   _notifs.unshift(item);_notifs=_notifs.slice(0,100);
@@ -904,7 +908,7 @@ function notifIncoming(item){
   if((item.data||{}).ongoing){appJobFromNotif(item);return}   // an install in progress: no toast, the tray shows it
   // Transfers already toast from the tray; everything else gets a toast too.
   if(item.kind!=='files')toast(item.title,item.level==='success'?'success':item.level,{hint:item.body||undefined,ref:item.ref||undefined,
-    action:item.link?{label:'Open',fn:()=>go(item.link)}:((item.data||{}).url===RICK_URL?{label:'Watch',fn:()=>rickroll(false)}:undefined)});
+    action:item.link?{label:'Open',fn:()=>go(item.link)}:undefined});
 }
 // An existing notification changed (a progress bar moved, "Installing" became "Installed").
 function notifUpdate(item){
@@ -956,8 +960,7 @@ function notifToggle(anchor){
     if(del){await api('/api/notifications?id='+encodeURIComponent(del),{method:'DELETE'});
       const was=_notifs.find(n=>n.id===del);_notifs=_notifs.filter(n=>n.id!==del);if(was&&!was.read)_notifUnread--;notifBadges();notifRenderList();return}
     const it=e.target.closest('.notif-item');
-    if(it){notifMarkRead([it.dataset.id]);if(it.dataset.link){notifClose();go(it.dataset.link)}
-      else notifOpenUrl(_notifs.find(n=>n.id===it.dataset.id))}
+    if(it){notifMarkRead([it.dataset.id]);if(it.dataset.link){notifClose();go(it.dataset.link)}}
   });
   // Opening the panel counts as having seen what's in it (after a moment).
   setTimeout(()=>{if(_notifPanel===p&&_notifUnread)notifMarkRead()},2500);
@@ -2076,7 +2079,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMdl()});
 function openMdl(title,body,foot='',lg=false){
   document.getElementById('mdlT').textContent=title;document.getElementById('mdlB').innerHTML=body;
   document.getElementById('mdlF').innerHTML=foot;mdl.classList.toggle('lg',!!lg);mdl.classList.remove('xl');ovr.classList.remove('hidden')}
-function closeMdl(){ovr.classList.add('hidden');document.querySelectorAll('#mdlB audio,#mdlB video').forEach(m=>{try{m.pause()}catch(e){}})}
+function closeMdl(){ovr.classList.add('hidden');document.querySelectorAll('#mdlB audio,#mdlB video').forEach(m=>{try{m.pause()}catch(e){}});
+  document.querySelectorAll('#mdlB iframe.fv-rick').forEach(f=>f.remove())}
 // The single shared confirm popover instance (see CSS comment above for why
 // this is one reused element positioned per-call, not per-button markup).
 let _vcPopEl=null,_vcCloseTimer=null,_vcAnchorEl=null;
@@ -2310,7 +2314,7 @@ const HsClock=(()=>{
       [mx,my]=rel(e);burst();
       const now=Date.now();
       taps=now-lastTap<1500?taps+1:1;lastTap=now;
-      if(taps>=13){taps=0;rickroll(true)}
+      if(taps>=13){taps=0;rickroll()}
     });
     const go=()=>{if(cv&&!raf)raf=requestAnimationFrame(frame)};
     if(document.fonts&&document.fonts.load){

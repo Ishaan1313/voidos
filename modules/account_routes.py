@@ -639,15 +639,14 @@ _RICK_LAST: dict = {}
 @require_auth
 def api_easter_rickroll():
     """The clock's easter egg (spam-click it 13 times): one notification that rickrolls again.
-    Fixed text and link, at most one per minute per account."""
+    Fixed text, no link, at most one per minute per account."""
     user = _current_user()
     now = time.time()
     if now - _RICK_LAST.get(user["id"], 0) < 60:
         return jsonify({"ok": True})
     _RICK_LAST[user["id"]] = now
-    _inapp_notify(user["id"], "You just got rickrolled", "Never gonna give you up. Tap to watch it again.",
-                  level="info", kind="easter",
-                  data={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
+    _inapp_notify(user["id"], "You\u2019ve been rickrolled. Again.",
+                  "Thirteen taps on the clock was all it took.", level="info", kind="easter")
     return jsonify({"ok": True})
 
 @app.route("/api/notifications/read", methods=["POST"])
