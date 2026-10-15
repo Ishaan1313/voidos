@@ -2068,8 +2068,8 @@ document.getElementById('mdlX')?.addEventListener('click',closeMdl);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMdl()});
 function openMdl(title,body,foot='',lg=false){
   document.getElementById('mdlT').textContent=title;document.getElementById('mdlB').innerHTML=body;
-  document.getElementById('mdlF').innerHTML=foot;mdl.classList.toggle('lg',lg);ovr.classList.remove('hidden')}
-function closeMdl(){ovr.classList.add('hidden')}
+  document.getElementById('mdlF').innerHTML=foot;mdl.classList.toggle('lg',!!lg);mdl.classList.remove('xl');ovr.classList.remove('hidden')}
+function closeMdl(){ovr.classList.add('hidden');document.querySelectorAll('#mdlB audio,#mdlB video').forEach(m=>{try{m.pause()}catch(e){}})}
 // The single shared confirm popover instance (see CSS comment above for why
 // this is one reused element positioned per-call, not per-button markup).
 let _vcPopEl=null,_vcCloseTimer=null,_vcAnchorEl=null;
@@ -3925,6 +3925,181 @@ function addFileEl(item){
   ins?g.insertBefore(newEl,ins):g.appendChild(newEl);
   wireItem(newEl);newEl.addEventListener('animationend',()=>newEl.classList.remove('entering'),{once:true});
 }
+// ── File viewer helpers: JSON tree, CSV table, Office documents, music player ─────────────
+const FV_OFFICE=new Set(['pptx','pptm','ppsx','docx','docm','xlsx','xlsm','ppt','doc','xls','odp','ods','odt']);
+const FV_IMG_MAX=40*1024*1024;         // a bigger picture is offered as a download instead of decoded in the tab
+function fvXl(on){const m=document.querySelector('.mdl');if(m)m.classList.toggle('xl',!!on)}
+function fvEl(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+
+// JSON as a collapsible tree (built with textContent, so nothing in the file is ever treated as HTML).
+function fvJsonTree(value){
+  let budget=4000;                      // nodes drawn; the raw view always shows everything
+  const render=(v,key,depth)=>{
+    if(--budget<0){return fvEl('div','jt-row jt-more','… more not shown')}
+    const k=key==null?null:fvEl('span','jt-k',typeof key==='number'?key+':':JSON.stringify(key)+':');
+    if(v!==null&&typeof v==='object'){
+      const isArr=Array.isArray(v),keys=isArr?v.map((_,i)=>i):Object.keys(v);
+      const d=document.createElement('details');d.className='jt-node';d.open=depth<2;
+      const s=document.createElement('summary');
+      if(k){s.appendChild(k);s.appendChild(document.createTextNode(' '))}
+      s.appendChild(fvEl('span','jt-b',isArr?`[ ${keys.length} ]`:`{ ${keys.length} }`));
+      d.appendChild(s);
+      const kids=fvEl('div','jt-kids');
+      keys.slice(0,500).forEach(kk=>kids.appendChild(render(v[kk],kk,depth+1)));
+      if(keys.length>500)kids.appendChild(fvEl('div','jt-row jt-more',`… ${keys.length-500} more`));
+      d.appendChild(kids);return d;
+    }
+    const row=fvEl('div','jt-row');
+    if(k){row.appendChild(k);row.appendChild(document.createTextNode(' '))}
+    const t=v===null?'null':typeof v;
+    row.appendChild(fvEl('span','jt-v jt-'+t,t==='string'?JSON.stringify(v.length>2000?v.slice(0,2000)+'…':v):String(v)));
+    return row;
+  };
+  const wrap=fvEl('div','jt');wrap.appendChild(render(value,null,0));return wrap;
+}
+// Small RFC-4180-ish CSV parser (quotes, doubled quotes, newlines inside quotes), bounded.
+function fvParseCsv(text,delim,maxRows,maxCols){
+  const rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<text.length&&rows.length<=maxRows;i++){
+    const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){cell+='"';i++}else q=false}else cell+=c}
+    else if(c==='"')q=true;
+    else if(c===delim){row.push(cell);cell=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);cell='';rows.push(row);row=[]}
+    else cell+=c;
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row)}
+  return rows.slice(0,maxRows).map(r=>r.slice(0,maxCols));
+}
+function fvTable(rows,header){
+  const t=fvEl('table','fv-tbl'),tb=document.createElement('tbody');
+  rows.forEach((r,i)=>{const tr=document.createElement('tr');
+    r.forEach(c=>{const td=document.createElement(header&&i===0?'th':'td');td.textContent=c;tr.appendChild(td)});tb.appendChild(tr)});
+  t.appendChild(tb);const w=fvEl('div','fv-tblwrap');w.appendChild(t);return w;
+}
+// Raw / formatted switch used by JSON and CSV.
+function fvModes(box,views){
+  const bar=fvEl('div','fv-modes');box.appendChild(bar);
+  const holder=fvEl('div');box.appendChild(holder);
+  const show=i=>{holder.replaceChildren(views[i].node());[...bar.children].forEach((b,j)=>b.classList.toggle('on',j===i))};
+  views.forEach((v,i)=>{const b=fvEl('button','fv-mode',v.label);b.type='button';b.onclick=()=>show(i);bar.appendChild(b)});
+  show(0);
+}
+
+// Office documents: the server pulls out the text (bounded), the page draws it.
+async function fvOffice(path,name,box){
+  const r=await api('/api/file/office?path='+encodeURIComponent(path));
+  const d=await r.json();
+  box.replaceChildren();
+  if(!r.ok||d.error){box.appendChild(fvEl('div','sdesc',d.error||'Couldn’t preview this file'));return}
+  if(['legacy','toolarge','broken'].includes(d.kind)){
+    const n=fvEl('div','fv-note');n.appendChild(fvEl('div','fv-note-ico','\u{1F4C4}'));n.appendChild(fvEl('div',null,d.note));
+    box.appendChild(n);return;
+  }
+  fvXl(true);
+  const meta=fvEl('div','fv-meta');
+  const chip=t=>meta.appendChild(fvEl('span','fv-chip',t));
+  const media=nm=>`/api/file/office/media?path=${encodeURIComponent(path)}&name=${encodeURIComponent(nm)}`;
+  if(d.kind==='pptx'){
+    chip('presentation');chip(`${d.total} slide${d.total===1?'':'s'}`);
+    if(d.truncated)chip('⚠ first '+d.slides.length+' shown');
+    box.appendChild(meta);
+    const list=fvEl('div','fv-slides');
+    d.slides.forEach((s,i)=>{
+      const c=fvEl('div','fv-slide');
+      c.appendChild(fvEl('div','fv-slide-n','Slide '+(i+1)));
+      if(s.title)c.appendChild(fvEl('div','fv-slide-t',s.title));
+      if(s.images.length){const g=fvEl('div','fv-slide-imgs');
+        s.images.forEach(nm=>{const im=document.createElement('img');im.loading='lazy';im.decoding='async';im.alt='';im.src=media(nm);
+          im.onerror=()=>im.remove();g.appendChild(im)});c.appendChild(g)}
+      if(s.text.length){const u=fvEl('ul','fv-slide-l');s.text.forEach(t=>u.appendChild(fvEl('li',null,t)));c.appendChild(u)}
+      if(!s.title&&!s.text.length&&!s.images.length)c.appendChild(fvEl('div','fv-slide-e','(no text on this slide)'));
+      if(s.notes)c.appendChild(fvEl('div','fv-slide-notes','Notes: '+s.notes));
+      list.appendChild(c);
+    });
+    box.appendChild(list);
+  }else if(d.kind==='docx'){
+    chip('document');if(d.truncated)chip('⚠ shortened');box.appendChild(meta);
+    const page=fvEl('div','fv-doc');
+    d.blocks.forEach(b=>{
+      if(b.t==='table')page.appendChild(fvTable(b.rows,true));
+      else page.appendChild(fvEl(b.t==='h'?'h'+Math.min(6,b.level+1):'p',null,b.text));
+    });
+    if(!d.blocks.length)page.appendChild(fvEl('div','sdesc','This document has no text.'));
+    box.appendChild(page);
+  }else if(d.kind==='xlsx'){
+    chip('workbook');chip(`${d.total} sheet${d.total===1?'':'s'}`);box.appendChild(meta);
+    const bar=fvEl('div','fv-modes'),holder=fvEl('div');box.appendChild(bar);box.appendChild(holder);
+    const show=i=>{const s=d.sheets[i];holder.replaceChildren();
+      if(!s.rows.length)holder.appendChild(fvEl('div','sdesc','This sheet is empty.'));
+      else holder.appendChild(fvTable(s.rows,true));
+      if(s.truncated)holder.appendChild(fvEl('div','sdesc','Showing the first '+s.rows.length+' rows.'));
+      [...bar.children].forEach((b,j)=>b.classList.toggle('on',j===i))};
+    d.sheets.forEach((s,i)=>{const b=fvEl('button','fv-mode',s.name);b.type='button';b.onclick=()=>show(i);bar.appendChild(b)});
+    if(d.sheets.length)show(0);
+  }
+}
+
+// Music player with a flowing wave that moves with the sound (a canvas fed by an AnalyserNode).
+function fvAudio(box,src,name){
+  box.replaceChildren();
+  const wrap=fvEl('div','fv-music');
+  const cv=fvEl('canvas','fv-wave');
+  const title=fvEl('div','fv-tname',name.replace(/\.[^.]+$/,''));
+  const sub=fvEl('div','fv-tsub','Audio');
+  const au=document.createElement('audio');au.className='fv-aud';au.controls=true;au.preload='metadata';au.src=src;
+  wrap.append(cv,title,sub,au);box.appendChild(wrap);
+  const cs=getComputedStyle(document.documentElement);
+  const col=n=>(cs.getPropertyValue(n)||'').trim()||'#8b7bff';
+  const colors=[col('--pu'),col('--ps'),col('--pg'),col('--pu')];
+  let ctx=null,an=null,data=null,lvl=0,t=0,raf=0,W=0,H=0;
+  const size=()=>{const dpr=Math.min(2,window.devicePixelRatio||1);W=Math.max(200,cv.clientWidth);H=cv.clientHeight||150;
+    cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);cv.getContext('2d').setTransform(dpr,0,0,dpr,0,0)};
+  const wire=()=>{
+    if(ctx)return;
+    try{const C=window.AudioContext||window.webkitAudioContext;ctx=new C();const s=ctx.createMediaElementSource(au);
+      an=ctx.createAnalyser();an.fftSize=128;an.smoothingTimeConstant=.82;s.connect(an);an.connect(ctx.destination);
+      data=new Uint8Array(an.frequencyBinCount)}catch(e){ctx=null;an=null}
+  };
+  const g=cv.getContext('2d');
+  const frame=()=>{
+    if(!document.body.contains(cv)){cancelAnimationFrame(raf);try{au.pause();ctx&&ctx.close()}catch(e){}return}
+    raf=requestAnimationFrame(frame);
+    const playing=!au.paused&&!au.ended;
+    let target=0.06;                                  // a gentle idle sway
+    if(playing){
+      target=0.28+0.1*Math.sin(t*2.1);                // moves even if the browser won't give us levels
+      if(an){an.getByteFrequencyData(data);let s=0;const n=Math.min(40,data.length);for(let i=0;i<n;i++)s+=data[i];
+        const l=s/n/255;if(l>0.001)target=Math.max(target*.35,l*1.35)}
+    }
+    lvl+=(target-lvl)*(target>lvl?.25:.06);
+    t+=0.016+lvl*.03;
+    g.clearRect(0,0,W,H);
+    g.globalCompositeOperation='lighter';
+    const layers=[{f:1.6,s:1.0,p:0,a:1.0,c:0},{f:2.3,s:-1.3,p:1.7,a:.75,c:1},{f:3.1,s:.8,p:3.1,a:.55,c:2},{f:1.1,s:-.6,p:4.6,a:.9,c:3}];
+    layers.forEach((L,li)=>{
+      g.beginPath();g.moveTo(0,H);
+      for(let x=0;x<=W;x+=6){
+        const u=x/W,env=Math.sin(Math.PI*u);              // quiet at the edges, full in the middle
+        const y=H*0.58-(Math.sin(u*Math.PI*2*L.f+t*L.s+L.p)*0.5+Math.sin(u*Math.PI*3.7*L.f-t*L.s*.7)*0.25)*H*(0.12+lvl*.5)*L.a*env-lvl*H*.12*env;
+        g.lineTo(x,y);
+      }
+      g.lineTo(W,H);g.closePath();
+      const gr=g.createLinearGradient(0,0,0,H);gr.addColorStop(0,colors[L.c]);gr.addColorStop(1,'rgba(0,0,0,0)');
+      g.globalAlpha=0.38;g.fillStyle=gr;g.fill();
+      g.globalAlpha=0.85;g.lineWidth=1.6;g.strokeStyle=colors[L.c];g.stroke();
+    });
+    g.globalAlpha=1;g.globalCompositeOperation='source-over';
+  };
+  size();
+  au.addEventListener('play',()=>{wire();if(ctx&&ctx.state==='suspended')ctx.resume();sub.textContent='Playing'});
+  au.addEventListener('pause',()=>{sub.textContent='Paused'});
+  au.addEventListener('ended',()=>{sub.textContent='Finished'});
+  au.addEventListener('loadedmetadata',()=>{if(isFinite(au.duration)&&au.duration>0&&!sub.dataset.set){sub.dataset.set=1;const m=Math.floor(au.duration/60),s=Math.floor(au.duration%60);sub.textContent=`Audio · ${m}:${String(s).padStart(2,'0')}`}});
+  window.addEventListener('resize',size);
+  frame();
+}
+
 async function viewFile(path,name){
   const pp=path.includes('/')?path.substring(0,path.lastIndexOf('/')):'';
   openMdl(name,`<div class="loading"><div class="loader"></div></div>`,
@@ -3934,6 +4109,8 @@ async function viewFile(path,name){
     if(job){closeMdl();const el=document.querySelector(`.fitem[data-path="${CSS.escape(path)}"]`);if(el){el.classList.add('leaving');setTimeout(()=>{el.remove();const g=document.getElementById('fgrid');if(g&&!g.querySelector('.fitem'))g.innerHTML='<div class="empty-dir">This folder is empty</div>'},220)}}
     },'Move to Trash',e.currentTarget)});
   try{
+    const _ext=(name.includes('.')?name.split('.').pop():'').toLowerCase();
+    if(FV_OFFICE.has(_ext)){await fvOffice(path,name,document.getElementById('mdlB'));return}
     // HEAD instead of GET for the initial content-type probe — Flask serves HEAD automatically
     // for any GET route, no server change needed. This only transfers headers, not the file body:
     // for image/video/audio/pdf below, the actual data transfer is the browser's own src=-triggered
@@ -3948,12 +4125,43 @@ async function viewFile(path,name){
     // api() helper here authenticates purely via the session cookie, which img/video/audio send
     // automatically on a same-origin request, same as the iframe below already relies on) — it just
     // meant nothing rendered until the whole file had downloaded, a real problem for a large video.
-    if(ct.startsWith('image/')){document.getElementById('mdlB').innerHTML=`<img class="fv-img" src="/api/file?path=${encodeURIComponent(path)}" alt="${escA(name)}"/>`;return}
-    if(ct.startsWith('video/')){document.getElementById('mdlB').innerHTML=`<video class="fv-vid" controls src="/api/file?path=${encodeURIComponent(path)}"></video>`;return}
-    if(ct.startsWith('audio/')){document.getElementById('mdlB').innerHTML=`<audio class="fv-aud" controls src="/api/file?path=${encodeURIComponent(path)}"></audio>`;return}
-    if(ct==='application/pdf'){document.getElementById('mdlB').innerHTML=`<iframe class="fv-pdf" src="/api/file?path=${encodeURIComponent(path)}"></iframe>`;return}
+    const _src='/api/file?path='+encodeURIComponent(path),_size=Number(r.headers.get('content-length'))||0;
+    if(ct.startsWith('image/')){
+      if(_size>FV_IMG_MAX){document.getElementById('mdlB').innerHTML=`<div class="fv-note"><div class="fv-note-ico">\u{1F5BC}</div><div>This picture is ${fmtB(_size)} — too large to show here. Download it to open it.</div></div>`;return}
+      fvXl(true);
+      const box=document.getElementById('mdlB');
+      box.innerHTML=`<div class="fv-meta"><span class="fv-chip" id="fvDim">image</span><span class="fv-chip">${fmtB(_size)}</span><span class="fv-chip">click to zoom</span></div><div class="fv-imgwrap"><img class="fv-img" decoding="async" src="${_src}" alt="${escA(name)}"/></div>`;
+      const im=box.querySelector('.fv-img'),wrap=box.querySelector('.fv-imgwrap');
+      im.addEventListener('load',()=>{const c=document.getElementById('fvDim');if(c)c.textContent=`${im.naturalWidth} × ${im.naturalHeight}`});
+      im.addEventListener('error',()=>{wrap.innerHTML='<div class="fv-note"><div>This image couldn’t be shown.</div></div>'});
+      im.addEventListener('click',()=>wrap.classList.toggle('zoom'));
+      return}
+    if(ct.startsWith('video/')){fvXl(true);document.getElementById('mdlB').innerHTML=`<video class="fv-vid" controls preload="metadata" src="${_src}"></video>`;return}
+    if(ct.startsWith('audio/')){fvAudio(document.getElementById('mdlB'),_src,name);return}
+    if(ct==='application/pdf'){fvXl(true);document.getElementById('mdlB').innerHTML=`<iframe class="fv-pdf" src="${_src}"></iframe>`;return}
     const d=await(await api('/api/file?path='+encodeURIComponent(path))).json();
     if(d.type==='text'){
+      if(!d.truncated&&['json','geojson'].includes(d.ext||'')){
+        let parsed,ok=true;try{parsed=JSON.parse(d.content)}catch(_){ok=false}
+        if(ok){
+          const box=document.getElementById('mdlB');box.replaceChildren();
+          const meta=fvEl('div','fv-meta');meta.appendChild(fvEl('span','fv-chip','json'));meta.appendChild(fvEl('span','fv-chip',fmtB(d.size)));box.appendChild(meta);
+          const raw=()=>{const pre=fvEl('pre','fv-rawjson');pre.textContent=JSON.stringify(parsed,null,2);const w=fvEl('div','fv-code');w.appendChild(pre);return w};
+          fvModes(box,[{label:'Tree',node:()=>fvJsonTree(parsed)},{label:'Formatted',node:raw}]);
+          const mf=document.getElementById('mdlF');const eb=document.createElement('button');eb.className='btn btn-g';eb.textContent='✏ Edit';eb.addEventListener('click',()=>editFile(path,name));mf.insertBefore(eb,mf.firstChild);return;
+        }
+      }
+      if(!d.truncated&&['csv','tsv'].includes(d.ext||'')){
+        const rows=fvParseCsv(d.content,d.ext==='tsv'?'\t':',',301,30);
+        if(rows.length>1){
+          const box=document.getElementById('mdlB');box.replaceChildren();
+          const meta=fvEl('div','fv-meta');meta.appendChild(fvEl('span','fv-chip',d.ext));meta.appendChild(fvEl('span','fv-chip',fmtB(d.size)));
+          if(rows.length>300)meta.appendChild(fvEl('span','fv-chip warn','⚠ first 300 rows'));box.appendChild(meta);
+          const rawv=()=>{const pre=fvEl('pre','fv-rawjson');pre.textContent=d.content;const w=fvEl('div','fv-code');w.appendChild(pre);return w};
+          fvModes(box,[{label:'Table',node:()=>fvTable(rows.slice(0,300),true)},{label:'Raw',node:rawv}]);
+          const mf=document.getElementById('mdlF');const eb=document.createElement('button');eb.className='btn btn-g';eb.textContent='✏ Edit';eb.addEventListener('click',()=>editFile(path,name));mf.insertBefore(eb,mf.firstChild);return;
+        }
+      }
       const isMarkdown=['md','markdown'].includes(d.ext||'');let content='';
       if(isMarkdown&&typeof marked!=='undefined'){content=`<div style="padding:12px 2px;line-height:1.75;font-size:14px;color:var(--tx)">${marked.parse(d.content)}</div>`}
       else{let hi=esc(d.content);if(typeof hljs!=='undefined'){try{hi=hljs.highlight(d.content,{language:d.ext||'plaintext',ignoreIllegals:true}).value}catch(_){try{hi=hljs.highlightAuto(d.content).value}catch(_2){}}}
@@ -5833,7 +6041,7 @@ async function loadVisTable(){
     if(undoBtn)undoBtn.style.display=anyPanicked?'inline-flex':'none';
     el.innerHTML=`<div class="user-table">${apps.map(a=>`
       <div class="user-row">
-        <div class="user-avatar avatar-guest">${esc(a.icon||'\u{1F517}')}</div>
+        <div class="user-avatar avatar-guest app-ico">${appIconHtml(a.icon)}</div>
         <div class="user-info"><div class="user-name">${esc(a.name)}</div>
           <div class="user-meta">${a.tunnel_enabled_before_panic?'<span style="color:var(--yw)">Stopped by Panic</span> &nbsp;\u2022&nbsp; ':''}${esc(a.description||'')||'&mdash;'}</div></div>
         <div class="user-actions" style="gap:20px">
