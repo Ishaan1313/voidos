@@ -2172,10 +2172,12 @@ function getGreeting(){
   const name=SETTINGS.display_name||UNAME||'';
   const h=new Date().getHours(),seed=new Date().getMinutes();
   let pool;
-  if(h>=5&&h<12)pool=['Good morning','Rise and shine','Morning'];
-  else if(h>=12&&h<17)pool=['Good afternoon','Afternoon'];
-  else if(h>=17&&h<21)pool=['Good evening','Evening'];
-  else pool=['Ready when you are','Burning the midnight oil','Working late'];
+  const dow=new Date().getDay();
+  const dayHi=['Happy Sunday','Happy Monday','Happy Tuesday','Happy Wednesday','Happy Thursday','Happy Friday','Happy Saturday'][dow];
+  if(h>=5&&h<12)pool=['Good morning','Rise and shine','Morning','Welcome back','Hello there',dayHi,'Fresh start'];
+  else if(h>=12&&h<17)pool=['Good afternoon','Afternoon','Welcome back','Hello there','Hope the day is going well',dayHi];
+  else if(h>=17&&h<21)pool=['Good evening','Evening','Welcome back','Hello there','Good to see you','Hope it was a good day'];
+  else pool=['Ready when you are','Burning the midnight oil','Working late','Still up','Night owl mode','Welcome back'];
   const base=pool[seed%pool.length];
   return name?`${base}, ${name}`:base;
 }
@@ -2458,9 +2460,45 @@ const _OK_POOL=[
   ()=>'Nothing needs your attention. Enjoy the quiet.',
   ()=>'Your files, your hardware, your rules \u2014 and everything is running.',
   (c)=>c.cpu!=null&&c.ram!=null&&c.cpu<80&&c.ram<85?`Healthy: CPU ${Math.round(c.cpu)}%, memory ${Math.round(c.ram)}%. Nothing to fix.`:null,
+  // by day of the week
+  (c)=>['Sunday mode: the server is relaxed, and so can you be.','New week, same rock-solid server.','Tuesday, and nothing is broken. A good one.',
+        'Midweek check: all systems steady.','Almost Friday \u2014 the server is already there.','Friday vibes. The server has no plans to ruin them.',
+        'Saturday: nothing to maintain, nothing to fix.'][c.day],
+  // by the numbers
+  (c)=>c.procs?`${c.procs} processes humming along, and none of them are misbehaving.`:null,
+  (c)=>c.cores&&c.cpu!=null&&c.cpu<30?`${c.cores} core${c.cores===1?'':'s'} ready and mostly idle. Throw something at it.`:null,
+  (c)=>c.up&&/days/.test(c.up)?`${c.up}. That\u2019s a proper streak.`:null,
+  (c)=>c.ramUsed&&c.ramTotal&&c.ram<75?`${fmtB(c.ramUsed)} of ${fmtB(c.ramTotal)} in use. Plenty left for whatever comes next.`:null,
+  (c)=>c.temp!=null&&c.temp<55?`${Math.round(c.temp)}\u00b0C \u2014 practically a spa day for the hardware.`:null,
+  (c)=>c.down!=null&&c.up_!=null&&c.down<51200&&c.up_<51200?'The network is calm \u2014 barely a whisper going in or out.':null,
+  (c)=>c.down>=1048576?`Pulling ${fmtSpd(c.down)} right now. The pipes are earning their keep.`:null,
+  (c)=>c.where?`Everything on ${c.where} is right where you left it.`:null,
+  (c)=>c.files&&c.files.percent<50?`Only ${Math.round(c.files.percent)}% of ${c.where} is used. Lots of room to grow.`:null,
+  (c)=>c.apps?`Your ${c.apps} app${c.apps===1?' is':'s are'} lined up and waiting for a click.`:null,
+  // by the hour
+  (c)=>c.hour>=12&&c.hour<14?'Lunch break? The server will keep an eye on things.':null,
+  (c)=>c.hour>=22?'Late one? The server keeps watch so you can log off.':null,
+  (c)=>c.hour>=6&&c.hour<9?'Early start. The server was up before you, as usual.':null,
+  // by name
+  (c)=>c.name?`${c.name}, the server has your back. Everything is running.`:null,
+  (c)=>c.name?`All green, ${c.name}. Take a breath.`:null,
+  // just because
+  ()=>'No alerts, no warnings, no surprises.',
+  ()=>'Quiet logs, healthy disks, happy server.',
+  ()=>'You own the box. The box is doing great.',
+  ()=>'Zero alerts. Zero drama. Zero reason to worry.',
+  ()=>'Powered by your hardware, answering to nobody else.',
+  ()=>'Nothing to report \u2014 which is the best kind of report.',
+  ()=>'Everything is exactly where it should be.',
+  ()=>'All systems go. Whatever you were about to do, go do it.',
+  ()=>'Your server, your data, your terms.',
+  ()=>'Still here, still running, still yours.',
 ];
 function _okMessage(d,files,where){
-  const c={files,where,cpu:d.cpu,ram:d.ram&&d.ram.percent,temp:d.temp,hour:new Date().getHours(),
+  const now=new Date();
+  const c={files,where,cpu:d.cpu,ram:d.ram&&d.ram.percent,ramUsed:d.ram&&d.ram.used,ramTotal:d.ram&&d.ram.total,temp:d.temp,
+           hour:now.getHours(),day:now.getDay(),procs:d.procs,cores:d.cores&&d.cores.length,
+           down:d.net&&d.net.down,up_:d.net&&d.net.up,name:SETTINGS.display_name||'',
            up:d.uptime?_uptimeWords(d.uptime):'',apps:(typeof _hsApps!=='undefined'&&_hsApps||[]).length};
   if(c.up==='Just started')c.up='';
   const first=_OK_POOL[Math.floor(_okSeed*_OK_POOL.length)](c);
