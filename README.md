@@ -178,6 +178,11 @@ voidos config       # edit .env          voidos enable|disable   # start at boot
 voidos update       # re-run the installer (keeps your data)
 ```
 
+`voidos logs` tidies the output: a time column, messages lined up, warnings in
+yellow, errors and tracebacks in red, systemd's own notes dimmed. `voidos logs
+--raw` shows the untouched journal. Re-run the installer after an update to get
+the newest copy of the command.
+
 After you create the first account, a **setup wizard** asks for every setting in `.env` (basics first, then one optional step per group of advanced settings, then a review). Anything left alone keeps its default.
 
 Re-running the installer is safe: it keeps your `.env` and all data. Uninstalling removes the service and the Python environment but keeps your files, `.env` and Void OS's data. The `first setup` folder holds the installers and `.env.example`; leave it in place.
@@ -346,6 +351,29 @@ updated to match. If a rename can't be done safely (the new name already holds
 something, or a drive is busy), that one folder keeps its old name and
 everything keeps working.
 
+**Opening files.** Click a file to preview it without downloading it. Pictures,
+video, PDFs and text open in a larger window (never bigger than 1240 px wide or
+92% of the screen):
+
+| Type | What you get |
+|---|---|
+| Pictures | fit to the window, with the pixel size shown; click to zoom to full size. Pictures over 40 MB are offered as a download instead |
+| Audio | a music player with a flowing wave that moves with the sound |
+| Video, PDF | the browser's own player and viewer |
+| PowerPoint (`.pptx`, `.ppsx`) | each slide's title, text, tables and pictures, plus speaker notes (first 150 slides) |
+| Word (`.docx`) | headings, paragraphs and tables |
+| Excel (`.xlsx`) | a tab per sheet, shown as a table (first 8 sheets, 200 rows, 26 columns each) |
+| JSON | a collapsible tree, or the formatted text |
+| CSV / TSV | a table (first 300 rows), or the raw text |
+| Markdown, code, text | rendered or highlighted; **Edit** opens the editor |
+| ZIP and other archives | the list of what's inside |
+
+Office documents are read on the server with hard limits (60 MB per file, 12 MB
+per XML part, entity declarations refused), and only the text and pictures are
+extracted: nothing in a document is ever run. Older `.ppt`, `.doc` and `.xls`
+files can't be previewed in a browser; the window says so and offers the
+download.
+
 **Uploading.** Drag files in or use **Upload**. Everything in flight shows in one
 panel at the bottom right (uploads, copies, moves, deletes and app installs): a
 row per file with its type, how much has gone up and the time left, a **Cancel**
@@ -436,7 +464,7 @@ A tile can have its [own tunnel](#a-separate-tunnel-per-app), a
 [PIN gate](#access-gate-for-tunneled-apps), and be hidden from Guests or from
 Admins.
 
-**App Store** (Super User, and Admins with Docker access) installs any of **178
+**App Store** (Super User, and Admins with Docker access) installs any of **180
 apps** — Jellyfin, Immich, Vaultwarden, Home Assistant, Nextcloud, Portainer
 and many more. The list ships inside Void OS (`app_catalog.zip`, icons
 included), so nothing is fetched to list or install apps other than the Docker
@@ -527,8 +555,14 @@ icon), check the folder with `modules/catalog_pack.py` (`validate_dir`) and buil
 release tagged `catalog` so every install gets it within a day with no program update. In a
 manifest, `"featured": true` puts an app in *Popular picks*.
 
-**Containers** lists every container with Start, Stop, Restart, Logs and
+**Containers** lists every container with Start, Stop, Restart, Logs, Rebuild and
 Remove (optionally deleting the image too, unless another container uses it).
+**Rebuild** re-creates a container from its compose file
+(`docker compose up -d --build --force-recreate` for that service), so a change
+you made to the file takes effect. Its data (volumes and bind-mounted folders) is
+kept, and the app is offline for a moment. It's shown only for containers that
+came from a compose file, runs in the background, and shows Docker Compose's
+output if it fails.
 A container that is restarting or exited with an error also gets a **Why?**
 button that explains the cause in plain words.
 Start/stop/restart/remove are written to the activity log.
@@ -604,6 +638,20 @@ ways, the way the desktop app does:
 - if both sides change a file, the newer one wins and the other is kept alongside;
 - it needs `rclone` (see below), and the `watchdog` package, which is installed with
   Void OS; without it, changes made here sync on the timer instead of at once.
+
+**While it runs.** The first download shows how much has arrived
+(*"First sync in progress — 3.0 GB of 12.0 GB (25%)"*, with a bar). The
+**Dropbox** entry in the Files sidebar opens that folder directly, and the folder
+and the sidebar entry show a small spinner whenever a sync is in progress. The
+import browser (pick single files from the account) is under **Settings →
+Storage & cloud → Browse**. The first download uses more parallel transfers than
+later syncs and may run for hours on a large account.
+
+**If it fails.** The notification names the reason rclone gave (not its routine
+start-up messages). A sync that was interrupted by a restart or an update leaves a
+lock file that rclone would otherwise refuse to pass; Void OS removes such stale
+locks (older than two minutes and not from a sync it is running) before each run,
+and rclone 1.66 or newer is told to expire them itself.
 
 Google Drive can be synced the same way, but only changes made on this server are
 picked up instantly; changes made in Drive arrive on the timer (a few minutes).
@@ -885,7 +933,7 @@ Super User, created during setup.
 |---|---|---|---|
 | Dashboard, Recycle Bin, search, WebDAV, share links, own cloud accounts | ✓ | ✓ | ✓ (own scope) |
 | Files | everything | everything by default¹ | Shared + own folder |
-| Files → App data (the App Store apps' own data folders) | ✓ | ✗ | ✗ |
+| Files → App data (the App Store apps' own data folders; the Super User can also delete a folder left behind by an uninstalled app, never one an installed app or container is using) | ✓ | ✗ | ✗ |
 | App Store, Containers | ✓ | ✓ by default¹ | ✗ |
 | App tiles: add, edit, remove, hide from Guests | ✓ | ✓ | view only |
 | Hide a tile from Admins | ✓ | ✗ (can't see or change tiles hidden from them) | ✗ |
@@ -922,7 +970,8 @@ signs it out. Access Control also holds:
 
 - the **Activity Log** — sign-ins (and failures), file operations, user and
   permission changes, sessions, shares, installs and more, filterable, capped at
-  `VOID_AUDIT_MAX_ENTRIES` (5,000);
+  `VOID_AUDIT_MAX_ENTRIES` (5,000). It scrolls inside its own box, so the Error
+  Log below it stays within reach;
 - the **Error Log** (see [Troubleshooting](#troubleshooting));
 - **App visibility** — hide a tile from Guests (any admin) or from Admins (Super
   User);
@@ -1193,6 +1242,7 @@ looking empty.
 | A feature says something is missing | the message names the package or tool to install |
 | Who did what, when | Access Control → Activity Log |
 | Tunnel not working | Settings → Remote access (status, link check, cloudflared output) |
+| A cloud sync keeps failing | the bell notification names the reason; `rm -f ~/.cache/rclone/bisync/*.lck` clears a stuck lock by hand |
 
 Common issues:
 
