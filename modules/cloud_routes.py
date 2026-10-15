@@ -331,7 +331,7 @@ def _sync_on_result(pair_id, ok, message, at):
                 u = next((x for x in _users_load() if x["id"] == p["user_id"]), None)
                 if u:
                     _audit("cloud_sync_failed", u, detail=f"{p['provider']}: {message[:200]}")
-                    _inapp_notify(u["id"], f"{p['provider'].title()} sync is failing", message[:400],
+                    _inapp_notify(u["id"], f"{p['provider'].title()} sync is failing", message[:600],
                                   level="error", kind="sync", link="settings")
     if not ok:
         pairs = _sync_pairs_load()

@@ -120,6 +120,34 @@ def rclone_version() -> tuple:
     return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
 
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]|\[(?:\d+;?)*m")
+_NOISE_RE = re.compile(r"Config file .* not found|using defaults|Setting --ignore-listing-checksum|"
+                       r"Bisyncing with Comparison Settings|Synching Path1|Path1 checking|Path2 checking|"
+                       r"Building Path|Checking .*listing|Starting bisync|Bisync (?:successful|completed)", re.I)
+_PROBLEM_RE = re.compile(r"ERROR|CRITICAL|FATAL|failed|error:|aborted|must run|--resync|safety|too many|"
+                         r"not found|permission|denied|quota|token|unauthori[sz]ed|expired|Couldn't|cannot|can't", re.I)
+
+
+def summarize_failure(output: str, limit: int = 600) -> str:
+    """The part of rclone's (very chatty) output that says what went wrong: colour codes and
+    time stamps removed, routine NOTICE/INFO lines skipped, the last few problem lines kept.
+    Falls back to the last few lines when nothing looks like a problem."""
+    lines = []
+    for raw in _ANSI_RE.sub("", output or "").splitlines():
+        t = re.sub(r"^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\s+", "", raw.strip())
+        t = re.sub(r"^(ERROR|CRITICAL|NOTICE|INFO|DEBUG)\s*:\s*", lambda m: m.group(1) + ": ", t)
+        if t:
+            lines.append(t)
+    bad = [t for t in lines if _PROBLEM_RE.search(t) and not _NOISE_RE.search(t)]
+    pick = bad[-4:] if bad else [t for t in lines if not _NOISE_RE.search(t)][-3:] or lines[-3:]
+    seen, out = set(), []
+    for t in pick:
+        if t not in seen:
+            seen.add(t); out.append(t)
+    msg = " | ".join(out)
+    return (msg[:limit - 1] + "\u2026") if len(msg) > limit else (msg or "rclone failed without a message")
+
+
 def run_bisync(remote_name: str, remote_vars: dict, remote_path: str, local_path: Path,
                 resync: bool = False, timeout_s: int = 0, provider: str = "") -> tuple[bool, str]:
     if not timeout_s:                  # the first full download of an account may take hours
@@ -150,8 +178,8 @@ def run_bisync(remote_name: str, remote_vars: dict, remote_path: str, local_path
         env.update(remote_vars)
         r = subprocess.run(cmd, capture_output=True, timeout=timeout_s, env=env, **_TEXT, **no_window())
         ok = r.returncode == 0
-        tail = "\n".join((r.stdout + "\n" + r.stderr).strip().splitlines()[-40:])  # last 40 lines is enough to diagnose
-        return ok, tail
+        tail = "\n".join((r.stdout + "\n" + r.stderr).strip().splitlines()[-200:])
+        return ok, ("Synced" if ok else summarize_failure(tail))
     except subprocess.TimeoutExpired:
         return False, f"Sync timed out after {timeout_s}s — a very large first sync can need a longer window " \
                        f"(this pair's next attempt will resume, since bisync is resumable by design)."
