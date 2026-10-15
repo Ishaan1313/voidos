@@ -896,8 +896,12 @@ function rickroll(){
   // No title, and no way to close it for the first five seconds (X, Escape and the button are all held back),
   // so the video has a chance to load before anyone dismisses it.
   openMdl('',
-    `<div class="fv-rick-wrap"><iframe class="fv-rick" src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0&playsinline=1"
-      title="Video" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>`,
+    // Nothing of the player's own UI is reachable: controls off, keyboard off, a transparent shield over the
+    // picture (no hover, no clicks, no title bar or pause button appearing), and the frame is taller than the
+    // window so the strip where the player draws its title and control bar is cropped away.
+    `<div class="fv-rick-wrap"><iframe class="fv-rick" tabindex="-1" aria-hidden="true"
+      src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&controls=0&disablekb=1&fs=0&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0&playsinline=1"
+      title="Video" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe><div class="fv-rick-shield"></div></div>`,
     '<button class="btn btn-g" onclick="closeMdl()">Okay, okay</button>',true);
   fvXl(true);
   const m=document.querySelector('.mdl');
