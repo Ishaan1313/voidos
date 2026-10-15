@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="void">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex,nofollow"/>
+<title>{% if rec %}{{ rec.name }} — Void OS Share{% else %}Void OS Share{% endif %}</title>
+<link rel="shortcut icon" href="/static/favicon.ico" />
+<style>
+:root,[data-theme="void"]{--bg:#0a0a12;--bg-rgb:10,10,18;--sf:rgba(18,16,28,.9);--sf2:#1c1929;--deep:#0d0b18;
+  --bd:rgba(155,133,255,.13);--bd2:rgba(155,133,255,.24);
+  --pu:#6d4aff;--pu-rgb:109,74,255;--ps:#9b85ff;--pd:#4a3aa8;
+  --tx:#f3f1fb;--td:#9a95a8;--tm:#9690a6;--pg:#7656ff;
+  --gr:#5fe3a6;--gr-rgb:95,227,166;--rd:#ff5c7a;--rd-rgb:255,92,122;
+  --yw:#ffd166;--yw-rgb:255,209,102;--bl:#5bc4ff;--bl-rgb:91,196,255;
+  --ov-rgb:255,255,255;
+  --r:14px;--rs:8px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--tx);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+  font-size:14px;line-height:1.5;overflow:hidden}
+button{font-family:inherit;cursor:pointer}
+.blobs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.3;mix-blend-mode:screen;
+  will-change:transform;backface-visibility:hidden;transform:translateZ(0)}
+.b1{width:500px;height:500px;background:radial-gradient(circle,var(--pu),transparent 70%);top:-14%;left:-10%;animation:d1 24s ease-in-out infinite alternate}
+.b2{width:420px;height:420px;background:radial-gradient(circle,var(--ps),transparent 70%);bottom:-16%;right:-8%;animation:d2 30s ease-in-out infinite alternate}
+.b3{width:300px;height:300px;background:radial-gradient(circle,var(--pd),transparent 70%);top:40%;left:58%;animation:d3 36s ease-in-out infinite alternate}
+@keyframes d1{0%{transform:translate3d(-25px,-25px,0)}to{transform:translate3d(45px,65px,0) scale(1.1)}}
+@keyframes d2{0%{transform:translate3d(38px,29px,0) scale(1.06)}to{transform:translate3d(-46px,-21px,0) scale(.93)}}
+@keyframes d3{0%{transform:translate3d(0,42px,0) scale(.86)}to{transform:translate3d(-36px,-27px,0) scale(1.16)}}
+
+.login-wrap{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.lcard{width:348px;max-width:91vw;padding:38px 32px 30px;text-align:center;
+  background:rgba(var(--bg-rgb),.8);border:1px solid var(--bd2);border-radius:20px;
+  backdrop-filter:blur(28px);box-shadow:0 28px 70px rgba(0,0,0,.65);animation:fadeUp .55s cubic-bezier(.2,.8,.2,1)}
+.lcard.shake{animation:shake .5s cubic-bezier(.36,.07,.19,.97)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(22px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(3px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
+
+.lock-wrap{display:flex;justify-content:center;margin-bottom:6px}
+.lock-wrap svg{animation:float 4s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+#shackle{transition:transform .5s cubic-bezier(.34,1.56,.64,1);transform-origin:32px 27px}
+.lock-open #shackle{transform:translateY(-5px) rotate(-38deg)}
+
+.ltitle{font-size:22px;font-weight:700;letter-spacing:-.03em;margin:14px 0 3px;word-break:break-word}
+.lsub{font-size:12px;color:var(--tm);margin-bottom:16px}
+.lstatus{font-size:13px;color:var(--td);min-height:16px;margin-bottom:16px;transition:color .35s cubic-bezier(.16,1,.3,1)}
+.lstatus.err{color:var(--rd)}.lstatus.ok{color:var(--gr)}
+
+.brand{font-size:11px;color:var(--ps);letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px}
+
+/* ── PIN keypad (used when the share's secret is a short, all-digit PIN) ──
+   Row-wrap fix: PINs are fixed at exactly 6 digits everywhere (see PIN_LEN
+   in voidos.py) — sized deliberately for exactly 6 boxes with margin to
+   spare (6 boxes at 36px + 5 gaps at 7px = 251px, well under this card's
+   284px inner width), flex-wrap explicitly nowrap so a future size/gap
+   tweak can't silently drift past the container width again unnoticed.
+   Already-issued PINs under older, wider length ranges still render at
+   their own original box count via the pinLength JS variable below. */
+.pin-row{display:flex;justify-content:center;gap:7px;margin-bottom:24px;flex-wrap:nowrap}
+.pin-box{position:relative;width:36px;height:50px;border-radius:12px;border:none;
+  background:linear-gradient(160deg,rgba(var(--ov-rgb),.06),rgba(var(--ov-rgb),.02));
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 0 rgba(var(--ov-rgb),.05) inset,0 6px 14px rgba(0,0,0,.24);
+  transition:box-shadow .32s cubic-bezier(.16,1,.3,1),transform .32s cubic-bezier(.16,1,.3,1),filter .32s cubic-bezier(.16,1,.3,1);
+  overflow:hidden;isolation:isolate}
+.pin-box::after{content:'';position:absolute;inset:0;border-radius:12px;padding:1.5px;pointer-events:none;
+  background:linear-gradient(135deg,var(--pu),var(--pg,var(--ps)));
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude}
+.pin-box::before{content:'';position:absolute;inset:0;border-radius:12px;z-index:-1;opacity:0;
+  background:radial-gradient(circle at 50% 30%,rgba(var(--pu-rgb),.5),transparent 72%);
+  transition:opacity .35s cubic-bezier(.16,1,.3,1)}
+.pin-box.active{filter:brightness(1.25);box-shadow:0 0 0 3px rgba(var(--pu-rgb),.16),0 6px 14px rgba(0,0,0,.24)}
+.pin-box.filled{animation:pinPop .45s cubic-bezier(.22,1,.36,1)}
+.pin-box.filled::before{opacity:.35}
+@keyframes pinPop{0%{transform:scale(1)}35%{transform:scale(1.12)}65%{transform:scale(.98)}100%{transform:scale(1)}}
+.pin-box .dot{width:12px;height:12px;border-radius:50%;
+  background:linear-gradient(135deg,var(--pu),var(--pg,var(--ps)));box-shadow:0 0 10px rgba(var(--pu-rgb),.7);
+  transform:scale(0);transition:transform .3s cubic-bezier(.22,1,.36,1)}
+.pin-box.filled .dot{transform:scale(1)}
+#pinHidden{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:6px;justify-items:center}
+.kbtn{position:relative;width:66px;height:66px;border:none;border-radius:50%;
+  background:linear-gradient(160deg,rgba(var(--ov-rgb),.07),rgba(var(--ov-rgb),.02));
+  border:1px solid rgba(var(--ov-rgb),.1);color:var(--tx);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  box-shadow:0 1px 0 rgba(var(--ov-rgb),.06) inset,0 3px 8px rgba(0,0,0,.24);
+  overflow:hidden;isolation:isolate;transform:translateY(0) scale(1);
+  transition:transform .5s cubic-bezier(.22,1.6,.36,1),box-shadow .38s cubic-bezier(.16,1,.3,1),
+    background .38s cubic-bezier(.16,1,.3,1),border-color .38s cubic-bezier(.16,1,.3,1),color .38s cubic-bezier(.16,1,.3,1)}
+.kbtn::before{content:'';position:absolute;inset:0;border-radius:50%;z-index:-1;opacity:0;
+  background:radial-gradient(circle at 50% 30%,rgba(var(--pu-rgb),.55),transparent 70%);
+  transition:opacity .38s cubic-bezier(.16,1,.3,1)}
+.kbtn .knum{position:relative;z-index:3;font-size:22px;font-weight:700;letter-spacing:-.01em;line-height:1}
+.kbtn:hover{border-color:rgba(var(--pu-rgb),.4);transform:translateY(-4px) scale(1);
+  box-shadow:0 1px 0 rgba(var(--ov-rgb),.08) inset,0 14px 22px -6px rgba(var(--pu-rgb),.35),0 0 0 1px rgba(var(--pu-rgb),.12)}
+.kbtn:hover::before{opacity:.16}
+.kbtn:active,.kbtn.kpress{transform:translateY(1px) scale(.88,.86);
+  box-shadow:0 1px 8px rgba(var(--pu-rgb),.4) inset,0 2px 4px rgba(0,0,0,.2);
+  transition:transform .09s cubic-bezier(.4,0,.6,1),box-shadow .09s ease}
+.kbtn:active::before,.kbtn.kpress::before{opacity:.32}
+.kbtn.ghost{background:transparent;border-color:transparent;box-shadow:none;color:var(--tm);font-size:11px;font-weight:600;letter-spacing:.04em}
+.kbtn.ghost:hover{background:rgba(var(--ov-rgb),.05);border-color:rgba(var(--ov-rgb),.09);color:var(--tx);
+  transform:translateY(-2px) scale(1);box-shadow:0 8px 14px -6px rgba(0,0,0,.3)}
+.kbtn.ghost:hover::before{opacity:0}
+.kbtn.ghost:active,.kbtn.ghost.kpress{transform:translateY(1px) scale(.9,.88);box-shadow:none;
+  transition:transform .09s cubic-bezier(.4,0,.6,1)}
+
+/* ── Password field (used for anything not detected as a short PIN) ── */
+.lform{text-align:left}
+.lfi{position:relative;margin-bottom:14px}
+.lfi input{width:100%;padding:13px 14px;background:rgba(var(--ov-rgb),.04);
+  border:1px solid rgba(var(--ov-rgb),.09);border-radius:var(--rs);color:var(--tx);
+  font-size:15px;outline:none;transition:border-color .32s cubic-bezier(.16,1,.3,1),
+    background .32s cubic-bezier(.16,1,.3,1),box-shadow .32s cubic-bezier(.16,1,.3,1)}
+.lfi input:focus{border-color:var(--pu);background:rgba(var(--pu-rgb),.08);
+  box-shadow:0 0 0 3px rgba(var(--pu-rgb),.14)}
+.lfi input::placeholder{color:var(--tm)}
+.pw-lfi input{padding-right:44px}
+.eyebtn{position:absolute;right:5px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--tm);padding:7px;border-radius:7px;
+  display:flex;align-items:center;transition:color .25s cubic-bezier(.16,1,.3,1),
+    background .25s cubic-bezier(.16,1,.3,1),transform .3s cubic-bezier(.22,1.6,.36,1)}
+.eyebtn:hover{color:var(--ps);background:rgba(var(--pu-rgb),.1)}
+.eyebtn:active{transform:translateY(-50%) scale(.85);transition:transform .09s cubic-bezier(.4,0,.6,1)}
+
+.lbtn{position:relative;width:100%;margin-top:2px;padding:13px;border:none;border-radius:var(--rs);
+  background:linear-gradient(135deg,var(--pu),var(--pg,var(--ps)));color:#fff;overflow:hidden;isolation:isolate;
+  font-size:14.5px;font-weight:600;transform:translateY(0) scale(1);
+  box-shadow:0 4px 14px rgba(var(--pu-rgb),.3);
+  transition:transform .5s cubic-bezier(.22,1.6,.36,1),box-shadow .38s cubic-bezier(.16,1,.3,1)}
+.lbtn::before{content:'';position:absolute;inset:0;z-index:-1;opacity:0;
+  background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.35),transparent 70%);
+  transition:opacity .38s cubic-bezier(.16,1,.3,1)}
+.lbtn:hover{transform:translateY(-3px) scale(1);box-shadow:0 12px 26px -4px rgba(var(--pu-rgb),.5)}
+.lbtn:hover::before{opacity:1}
+.lbtn:active{transform:translateY(1px) scale(.96,.94);box-shadow:0 4px 10px rgba(var(--pu-rgb),.3);
+  transition:transform .09s cubic-bezier(.4,0,.6,1),box-shadow .09s ease}
+.lbtn:disabled{opacity:.55;pointer-events:none}
+.lbtn.dl{margin-top:16px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+
+/* ── Download progress ring — WeTransfer-style, driven by real fetch()
+   byte counts (see startDownload() below), themed with Void's own
+   CSS vars instead of hardcoded colors. ── */
+.dl-panel{margin-top:10px;display:flex;flex-direction:column;align-items:center}
+.dl-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 13px;border-radius:20px;
+  font-size:11.5px;font-weight:600;letter-spacing:.02em;margin-bottom:18px;
+  background:rgba(var(--pu-rgb),.14);color:var(--ps);border:1px solid rgba(var(--pu-rgb),.28);
+  transition:background .35s,color .35s,border-color .35s}
+.dl-badge.st-done{background:rgba(var(--gr-rgb),.14);color:var(--gr);border-color:rgba(var(--gr-rgb),.3)}
+.dl-badge.st-error{background:rgba(var(--rd-rgb),.14);color:var(--rd);border-color:rgba(var(--rd-rgb),.3)}
+.dl-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:dl-pulse 1.4s ease-in-out infinite}
+.dl-badge.st-done .dl-dot,.dl-badge.st-error .dl-dot{animation:none}
+@keyframes dl-pulse{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+
+.dl-ring-wrap{position:relative;width:150px;height:150px;margin:0 auto;
+  animation:dl-spin 2.2s linear infinite}
+@keyframes dl-spin{to{transform:rotate(360deg)}}
+.dl-glow{position:absolute;inset:-14px;border-radius:50%;filter:blur(22px);opacity:.35;
+  background:radial-gradient(circle,var(--pu),transparent 70%);transition:background 1s,opacity .6s}
+.dl-ring-wrap.st-done .dl-glow{background:radial-gradient(circle,var(--gr),transparent 70%);opacity:.4}
+.dl-ring-wrap.st-error .dl-glow{background:radial-gradient(circle,var(--rd),transparent 70%);opacity:.4}
+.dl-ring{width:100%;height:100%;position:relative;z-index:1;transform:rotate(-90deg)}
+.dl-track{stroke:rgba(var(--ov-rgb),.08)}
+.dl-fill{stroke:var(--ps);transition:stroke-dashoffset .25s cubic-bezier(.22,1,.36,1),stroke .4s}
+.dl-ring-wrap.st-done .dl-fill{stroke:var(--gr)}
+.dl-ring-wrap.st-error .dl-fill{stroke:var(--rd)}
+.dl-center{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;animation:dl-spin 2.2s linear infinite reverse} /* counter-rotate so text stays upright */
+.dl-pct{font-size:26px;font-weight:700;letter-spacing:-.02em;color:var(--tx)}
+.dl-speed{font-size:11px;color:var(--td);margin-top:2px;min-height:14px}
+.dl-check{width:38px;height:38px;color:var(--gr);animation:dl-pop .4s cubic-bezier(.34,1.56,.64,1)}
+@keyframes dl-pop{from{transform:scale(0)}to{transform:scale(1)}}
+
+.dl-stats{width:100%;max-width:220px;margin-top:18px;text-align:center}
+.dl-statline{font-size:12px;color:var(--td)}
+.dl-statline+.dl-statline{margin-top:2px}
+.dl-minibar{height:3px;background:rgba(var(--ov-rgb),.08);border-radius:2px;margin-top:10px;overflow:hidden}
+.dl-minifill{height:100%;width:0%;border-radius:2px;background:linear-gradient(90deg,var(--pu),var(--ps));
+  transition:width .25s cubic-bezier(.22,1,.36,1)}
+.dl-retry{margin-top:16px;padding:9px 20px;border:1px solid rgba(var(--rd-rgb),.3);border-radius:var(--rs);
+  background:rgba(var(--rd-rgb),.1);color:var(--rd);font-size:13px;font-weight:600}
+.dl-retry:hover{background:rgba(var(--rd-rgb),.18)}
+
+.progw{height:4px;background:rgba(var(--ov-rgb),.06);border-radius:2px;margin-top:18px;overflow:hidden;opacity:0;transition:opacity .3s}
+.progw.show{opacity:1}
+.progf{height:100%;width:0%;border-radius:2px;background:linear-gradient(90deg,var(--pu),var(--ps),var(--gr));transition:width 1s cubic-bezier(.22,1,.36,1)}
+
+.meta{font-size:12.5px;color:var(--td);margin-top:-4px;margin-bottom:6px}
+
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="blobs"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<div class="login-wrap">
+  <div class="lcard" id="lcard">
+    <div class="lock-wrap">
+      <svg id="lockSvg" width="56" height="56" viewBox="0 0 64 64" fill="none" class="{% if unlocked or (rec and not rec.password_hash) %}lock-open{% endif %}">
+        <path id="shackle" d="M20 27V19C20 11.8 25.8 6 33 6C40.2 6 46 11.8 46 19V27"
+          stroke="url(#rg)" stroke-width="5" stroke-linecap="round"/>
+        <rect x="14" y="27" width="38" height="30" rx="8" fill="url(#rg)"/>
+        <circle cx="33" cy="40" r="4.5" fill="#0a0a12"/>
+        <rect x="30.5" y="40" width="5" height="10" rx="2.5" fill="#0a0a12"/>
+      </svg>
+      <svg width="0" height="0" style="position:absolute">
+        <defs>
+          <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6d4aff"/><stop offset="100%" stop-color="#9b85ff"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <div class="brand">Void OS &middot; Shared with you</div>
+
+    {% if error %}
+      <div class="ltitle" style="color:var(--rd)">{{ error }}</div>
+      <div class="lsub">This link may have been revoked, expired, or never existed.</div>
+
+    {% elif rec and not unlocked and rec.password_hash %}
+      <div class="ltitle">{{ rec.name }}</div>
+      <div class="meta">{{ "Folder" if rec.is_dir else "File" }} &middot; {{ "PIN" if rec.is_pin else "password" }} required</div>
+      <div class="lstatus {% if pw_error %}err{% endif %}" id="lstat">{{ pw_error or ("Enter the " ~ (rec.pin_length or 6) ~ "-digit PIN" if rec.is_pin else "Enter the password to continue") }}</div>
+
+      {% if rec.is_pin %}
+      <div class="pin-row" id="pinRow"></div>
+      <input id="pinHidden" inputmode="numeric" pattern="[0-9]*" maxlength="{{ rec.pin_length or 6 }}" autocomplete="off"/>
+      <div class="keypad" id="keypad"></div>
+      {% else %}
+      <div class="lform">
+        <div class="lfi pw-lfi">
+          <input type="password" id="upass" placeholder="Password" autocomplete="off" autofocus/>
+          <button class="eyebtn" id="eyeBtn" type="button" aria-label="Show password">
+            <svg id="eyeIco" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+        <button class="lbtn" id="lBtn" type="button">Unlock</button>
+      </div>
+      {% endif %}
+
+      <div class="progw" id="progW"><div class="progf" id="progF"></div></div>
+
+    {% elif rec %}
+      <div class="ltitle">{{ rec.name }}</div>
+      <div class="meta">{{ "Folder" if rec.is_dir else "File" }}{% if size is not none %} &middot; {{ "%.1f"|format(size / 1048576) }} MB{% endif %}</div>
+      <div class="lsub">This link was shared with you — no account needed.</div>
+      <div id="dlIdle">
+        <button class="lbtn dl" id="dlBtn" type="button">{{ "Download .zip" if rec.is_dir else "Download" }}</button>
+      </div>
+      <div class="dl-panel" id="dlPanel" style="display:none">
+        <div class="dl-badge" id="dlBadge"><span class="dl-dot"></span><span id="dlBadgeText">Preparing&hellip;</span></div>
+        <div class="dl-ring-wrap" id="dlRingWrap">
+          <div class="dl-glow" id="dlGlow"></div>
+          <svg class="dl-ring" viewBox="0 0 200 200">
+            <circle class="dl-track" cx="100" cy="100" r="82" stroke-width="12" fill="none"/>
+            <circle class="dl-fill" id="dlFillCircle" cx="100" cy="100" r="82" stroke-width="12" fill="none" stroke-linecap="round"/>
+          </svg>
+          <div class="dl-center" id="dlCenter">
+            <div class="dl-pct" id="dlPct">0%</div>
+            <div class="dl-speed" id="dlSpeed">Starting&hellip;</div>
+          </div>
+        </div>
+        <div class="dl-stats" id="dlStats">
+          <div class="dl-statline" id="dlBytes">0 MB</div>
+          <div class="dl-statline" id="dlEta"></div>
+          <div class="dl-minibar"><div class="dl-minifill" id="dlMiniFill"></div></div>
+        </div>
+        <button class="dl-retry" id="dlRetry" type="button" style="display:none">Try again</button>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+// ── PIN keypad (pin-row + numeric keypad) ───────────────────────────
+// Builds the pin-row boxes AND the keypad's 12 buttons dynamically rather
+// than hardcoding them in the HTML above — pinLength varies per share (an
+// already-issued PIN under an older, wider length range still renders at
+// its own original length; only newly-created ones are fixed at 6 digits,
+// see PIN_LEN in voidos.py).
+function initPinKeypad({pinRowEl, keypadEl, hiddenEl, pinLength, onComplete, isBusy}){
+  pinRowEl.innerHTML = '';
+  for(let i = 0; i < pinLength; i++){
+    const b = document.createElement('div');
+    b.className = 'pin-box';
+    b.dataset.i = i;
+    b.innerHTML = '<div class="dot"></div>';
+    pinRowEl.appendChild(b);
+  }
+  const boxes = [...pinRowEl.querySelectorAll('.pin-box')];
+
+  keypadEl.innerHTML = `
+    <button class="kbtn" data-k="1"><span class="knum">1</span></button>
+    <button class="kbtn" data-k="2"><span class="knum">2</span></button>
+    <button class="kbtn" data-k="3"><span class="knum">3</span></button>
+    <button class="kbtn" data-k="4"><span class="knum">4</span></button>
+    <button class="kbtn" data-k="5"><span class="knum">5</span></button>
+    <button class="kbtn" data-k="6"><span class="knum">6</span></button>
+    <button class="kbtn" data-k="7"><span class="knum">7</span></button>
+    <button class="kbtn" data-k="8"><span class="knum">8</span></button>
+    <button class="kbtn" data-k="9"><span class="knum">9</span></button>
+    <button class="kbtn ghost" data-k="clear">Clear</button>
+    <button class="kbtn" data-k="0"><span class="knum">0</span></button>
+    <button class="kbtn ghost" data-k="back">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12H8M8 12l4-4M8 12l4 4"/><path d="M8 5H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h4"/>
+      </svg>
+    </button>`;
+
+  function render(){
+    const val = hiddenEl.value;
+    boxes.forEach((b, i) => {
+      b.classList.toggle('filled', i < val.length);
+      b.classList.toggle('active', i === val.length);
+    });
+  }
+
+  function reset(){ hiddenEl.value = ''; render(); }
+
+  function flashKey(k){
+    const btn = keypadEl.querySelector(`.kbtn[data-k="${k}"]`);
+    if(!btn) return;
+    btn.classList.add('kpress');
+    setTimeout(() => btn.classList.remove('kpress'), 140);
+  }
+
+  function press(k){
+    if(isBusy && isBusy()) return;
+    if(k === 'back'){ hiddenEl.value = hiddenEl.value.slice(0, -1); render(); return; }
+    if(k === 'clear'){ hiddenEl.value = ''; render(); return; }
+    if(hiddenEl.value.length >= pinLength) return;
+    hiddenEl.value += k;
+    render();
+    if(hiddenEl.value.length === pinLength) onComplete(hiddenEl.value);
+  }
+
+  keypadEl.addEventListener('click', e => {
+    const btn = e.target.closest('.kbtn');
+    if(!btn) return;
+    press(btn.dataset.k);
+  });
+
+  const keydownHandler = e => {
+    if(isBusy && isBusy()) return;
+    if(/^[0-9]$/.test(e.key)){ press(e.key); flashKey(e.key); }
+    else if(e.key === 'Backspace'){ press('back'); flashKey('back'); }
+    else if(e.key === 'Escape'){ press('clear'); flashKey('clear'); }
+  };
+  document.addEventListener('keydown', keydownHandler);
+
+  render();
+  return {reset, destroy: () => document.removeEventListener('keydown', keydownHandler)};
+}
+
+const IS_PIN = {{ 'true' if (rec and rec.is_pin) else 'false' }};
+const PIN_LENGTH = {{ (rec.pin_length or 6) if rec else 6 }};
+const TOKEN = {{ token|tojson if token else 'null' }};
+
+const card = document.getElementById('lcard');
+const lock = document.getElementById('lockSvg');
+const stat = document.getElementById('lstat');
+const prog = document.getElementById('progW');
+const fill = document.getElementById('progF');
+let busy = false;
+
+async function submitSecret(value){
+  if(busy || !TOKEN) return;
+  busy = true;
+  if(stat){ stat.className = 'lstatus'; stat.textContent = 'Checking\u2026'; }
+  const pinBtn = document.getElementById('keypad');
+  const pwBtn = document.getElementById('lBtn');
+  if(pwBtn) pwBtn.disabled = true;
+
+  let resp;
+  try{
+    resp = await fetch('/s/' + TOKEN, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'password=' + encodeURIComponent(value),
+    });
+  }catch(e){
+    if(stat){ stat.textContent = 'Network error — try again'; stat.className = 'lstatus err'; }
+    busy = false; if(pwBtn) pwBtn.disabled = false;
+    return;
+  }
+
+  if(resp.ok){
+    // The unlock cookie is already set by the browser from the response above
+    // (same-origin fetch stores Set-Cookie automatically) — a reload now lands
+    // on the unlocked/ready-to-download state server-side.
+    lock.classList.add('lock-open');
+    if(stat){ stat.textContent = 'Access granted\u2026'; stat.className = 'lstatus ok'; }
+    if(prog){ prog.classList.add('show'); requestAnimationFrame(()=> fill.style.width = '100%'); }
+    setTimeout(()=> location.reload(), 700);
+    return;
+  }
+
+  let msg = IS_PIN ? 'Incorrect PIN' : 'Incorrect password';
+  if(resp.status === 429){
+    const wait = resp.headers.get('X-Retry-After');
+    msg = wait ? `Too many attempts — try again in ${wait}s` : 'Too many attempts — try again shortly';
+  }
+  card.classList.add('shake');
+  if(stat){ stat.textContent = msg; stat.className = 'lstatus err'; }
+  setTimeout(()=> card.classList.remove('shake'), 450);
+  busy = false;
+  if(pwBtn) pwBtn.disabled = false;
+  if(IS_PIN) resetPin();
+}
+
+// ── PIN keypad wiring ────────────────────────────────────────
+// IS_PIN reflects the share's protection type (rec.is_pin) and stays true
+// even after unlock, but the keypad markup only exists on the locked page
+// — guard on the element too, or this throws on the unlocked/download page
+// and kills the rest of the script (including the download button wiring).
+// initPinKeypad (modules/pin_keypad.js, inlined above) is the single shared
+// source for this — also used by gate_proxy.py's unlock page.
+if(IS_PIN && document.getElementById('keypad')){
+  const kp = initPinKeypad({
+    pinRowEl: document.getElementById('pinRow'),
+    keypadEl: document.getElementById('keypad'),
+    hiddenEl: document.getElementById('pinHidden'),
+    pinLength: PIN_LENGTH,
+    onComplete: submitSecret,
+    isBusy: () => busy,
+  });
+  window.resetPin = kp.reset;
+}
+
+// ── Password field wiring ───────────────────────────────────
+const pw = document.getElementById('upass');
+if(pw){
+  const eyeBtn = document.getElementById('eyeBtn');
+  const eyeIco = document.getElementById('eyeIco');
+  const EO = '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>';
+  const EC = '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24M1 1l22 22"/>';
+  eyeBtn.addEventListener('click', ()=>{
+    const show = pw.type === 'text';
+    pw.type = show ? 'password' : 'text';
+    eyeIco.innerHTML = show ? EO : EC;
+  });
+  window.resetPin = ()=>{ pw.value=''; pw.focus(); };  // shares the same failure-path hook as the PIN flow
+  pw.addEventListener('keydown', e=>{ if(e.key === 'Enter') submitSecret(pw.value); });
+  document.getElementById('lBtn').addEventListener('click', ()=>{
+    if(!pw.value){ stat.textContent = 'Enter the password'; stat.className = 'lstatus err'; return; }
+    submitSecret(pw.value);
+  });
+}
+
+// ── Download progress ring — real bytes, no simulation ─────────────
+// Drives the same ring/badge/stats UI regardless of *how* the bytes are
+// delivered: the File System Access API writes straight to disk when the
+// browser supports it (no memory spike even for a huge share), everywhere
+// else falls back to buffering into a Blob and triggering a normal
+// download once the stream finishes. Either way the percentage comes from
+// real fetch() chunk arrivals against the server's real Content-Length —
+// see _share_zip_precompute_size() in voidos.py for how that's computed.
+const DL_RING_CIRC = 2 * Math.PI * 82;
+const DL_URL = TOKEN ? '/s/' + TOKEN + '/download' : null;
+const DL_NAME = {{ (rec.name + ('.zip' if rec.is_dir else '')) | tojson if rec else 'null' }};
+let dlLastTs = 0, dlLastBytes = 0, dlSpeed = 0;
+
+function dlFmtMB(bytes){ return (bytes/1048576).toFixed(1) + ' MB'; }
+function dlFmtSpeed(bps){
+  if(!bps) return '';
+  return bps < 1048576 ? (bps/1024).toFixed(0)+' KB/s' : (bps/1048576).toFixed(1)+' MB/s';
+}
+function dlFmtEta(bytesLeft, bps){
+  if(!bps || bytesLeft <= 0) return '';
+  const s = bytesLeft/bps;
+  return s < 60 ? Math.ceil(s)+'s left' : Math.ceil(s/60)+'m left';
+}
+function dlUpdateSpeed(loaded, now){
+  if(dlLastTs){
+    const dt=(now-dlLastTs)/1000;
+    if(dt > 0.15){
+      const inst=(loaded-dlLastBytes)/dt;
+      dlSpeed = dlSpeed ? dlSpeed*0.7 + inst*0.3 : inst;
+      dlLastTs=now; dlLastBytes=loaded;
+    }
+  } else { dlLastTs=now; dlLastBytes=loaded; }
+  return dlSpeed;
+}
+function dlSetProgress(loaded, total){
+  const pct = total ? Math.min(100, loaded/total*100) : 0;
+  document.getElementById('dlFillCircle').style.strokeDashoffset = DL_RING_CIRC - (pct/100)*DL_RING_CIRC;
+  document.getElementById('dlPct').textContent = Math.floor(pct) + '%';
+  document.getElementById('dlBytes').textContent = dlFmtMB(loaded) + (total ? ' / ' + dlFmtMB(total) : '');
+  const mini = document.getElementById('dlMiniFill'); if(mini) mini.style.width = pct + '%';
+}
+function dlSetState(state){ // 'progress' | 'done' | 'error'
+  const wrap=document.getElementById('dlRingWrap'), badge=document.getElementById('dlBadge'),
+        badgeText=document.getElementById('dlBadgeText'), center=document.getElementById('dlCenter'),
+        retry=document.getElementById('dlRetry');
+  wrap.className='dl-ring-wrap st-'+state; badge.className='dl-badge st-'+state;
+  if(state==='done'){
+    badgeText.textContent='Transfer Complete';
+    center.innerHTML='<svg class="dl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    retry.style.display='none';
+  } else if(state==='error'){
+    badgeText.textContent='Download Failed';
+    center.innerHTML='<div class="dl-pct">!</div><div class="dl-speed">Something went wrong</div>';
+    retry.style.display='';
+  } else {
+    badgeText.textContent='Downloading\u2026';
+    retry.style.display='none';
+  }
+}
+
+async function startDownload(){
+  if(!DL_URL) return;
+  const idle=document.getElementById('dlIdle'), panel=document.getElementById('dlPanel');
+  idle.style.display='none'; panel.style.display='';
+  const circle=document.getElementById('dlFillCircle');
+  circle.style.strokeDasharray = DL_RING_CIRC;
+  circle.style.strokeDashoffset = DL_RING_CIRC;
+  dlLastTs=0; dlLastBytes=0; dlSpeed=0;
+  dlSetProgress(0,0); dlSetState('progress');
+  document.getElementById('dlEta').textContent='';
+
+  let resp;
+  try{ resp = await fetch(DL_URL, {credentials:'same-origin'}); }
+  catch(e){ dlSetState('error'); return; }
+  if(!resp.ok || !resp.body){ dlSetState('error'); return; }
+  const total = Number(resp.headers.get('Content-Length')) || 0;
+
+  function trackChunk(loaded){
+    const now = performance.now();
+    dlSetProgress(loaded, total);
+    const spd = dlUpdateSpeed(loaded, now);
+    document.getElementById('dlSpeed').textContent = dlFmtSpeed(spd);
+    document.getElementById('dlEta').textContent = total ? dlFmtEta(total-loaded, spd) : '';
+  }
+
+  // Option A — File System Access API (Chromium): pipe chunks straight to
+  // disk as they arrive, no full-file memory buffering even for a huge share.
+  if(window.showSaveFilePicker){
+    let handle;
+    try{ handle = await window.showSaveFilePicker({suggestedName: DL_NAME}); }
+    catch(e){ // user dismissed the save dialog — quietly reset, not an error
+      idle.style.display=''; panel.style.display='none'; return;
+    }
+    try{
+      const writable = await handle.createWritable();
+      const reader = resp.body.getReader();
+      let loaded=0;
+      while(true){
+        const {done,value} = await reader.read();
+        if(done) break;
+        await writable.write(value);
+        loaded += value.length;
+        trackChunk(loaded);
+      }
+      await writable.close();
+      dlSetProgress(total||loaded, total||loaded);
+      dlSetState('done');
+    }catch(e){ dlSetState('error'); }
+    return;
+  }
+
+  // Option B — everywhere else: buffer chunks, assemble into a Blob once
+  // the stream finishes, then trigger a normal download from it.
+  try{
+    const reader = resp.body.getReader();
+    const chunks=[]; let loaded=0;
+    while(true){
+      const {done,value} = await reader.read();
+      if(done) break;
+      chunks.push(value); loaded += value.length;
+      trackChunk(loaded);
+    }
+    const blob = new Blob(chunks);
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl; a.download = DL_NAME || 'download';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(blobUrl), 30000);
+    dlSetProgress(total||loaded, total||loaded);
+    dlSetState('done');
+  }catch(e){ dlSetState('error'); }
+}
+
+document.getElementById('dlBtn')?.addEventListener('click', startDownload);
+document.getElementById('dlRetry')?.addEventListener('click', startDownload);
+</script>
+</body>
+</html>

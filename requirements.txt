@@ -1,0 +1,79 @@
+flask>=3.0
+psutil>=5.9
+docker>=6.0
+itsdangerous>=2.1
+python-dotenv>=1.0
+flask-sock>=0.7
+
+# Parses docker-compose.yml text for the App Store's update/preview features
+# (extracting image tags, scanning submitted compose overrides for risky
+# directives like privileged/cap_add/host networking before writing them to
+# disk). Not relied on as a security boundary by itself — see
+# _scan_compose_risks's docstring for why this is a warn-and-confirm, not a
+# hard gate.
+PyYAML>=6.0
+
+# Encrypts the cloud login tokens (cloud_tokens.json) with a key derived from
+# VOID_SECRET_KEY — see modules/secret_store.py. If it is missing, nothing
+# breaks: the tokens are simply stored unencrypted (still owner-only).
+cryptography>=42.0
+
+# Draws the QR code for two-factor sign-in setup (modules/twofactor.py). Optional:
+# without it the page shows the setup key to type in by hand.
+segno>=1.6
+
+# Gunicorn is the production server on Linux/macOS (see README.md's "Performance &
+# limits" section for why — Waitress doesn't support the WebSocket hijacking
+# flask-sock's terminal route depends on, so it's not a valid substitute here).
+# It's POSIX-only (relies on os.fork()), so it's skipped entirely on Windows,
+# where this app instead runs on Werkzeug's own dev server, which flask-sock
+# also supports directly.
+gunicorn>=21.0; sys_platform != "win32"
+
+# ── Windows-only ─────────────────────────────────────────────────────────
+# Real terminal on Windows (ConPTY/winpty pseudo-console). Without it the
+# Terminal tab still works, but in a basic line-at-a-time cmd.exe mode.
+pywinpty>=2.0; sys_platform == "win32"
+# docker-py reaches Docker Desktop over the npipe:////./pipe/docker_engine
+# named pipe, which needs pywin32 (recent docker releases pull it in
+# themselves; listed explicitly so an older pin can't silently break it).
+pywin32>=306; sys_platform == "win32"
+# Intercom audio (PortAudio). The Windows wheel bundles its own DLL, so nothing
+# else is needed there. On Linux PipeWire's command-line tools are used when they
+# are present (see below), and this package is the fallback for machines without
+# PipeWire (it then needs: sudo apt install libportaudio2). If it can't load the
+# Intercom page says so; nothing else is affected.
+# Bluetooth scan/pair on Windows needs NO package: it calls Windows' own
+# WinRT Bluetooth APIs through the built-in Windows PowerShell 5.1.
+sounddevice>=0.4.6
+
+# The Intercom on Linux prefers host command-line tools to pip packages. They
+# need to be on PATH, and the Intercom page's set-up check says exactly which
+# is missing:
+#   - bluetoothctl (BlueZ)         — sudo apt install bluez
+#   - pw-record / pw-play / pw-dump (PipeWire) — sudo apt install pipewire pipewire-audio wireplumber
+# Raspberry Pi OS Bookworm and earlier default to the older PulseAudio stack, so
+# install PipeWire explicitly (or use the PortAudio fallback above).
+
+# Continuous Cloud Sync (see README's Cloud Storage section) also shells
+# out to a host CLI tool rather than a pip package — the same pattern as
+# Bluetooth/PipeWire above:
+#   - rclone — curl https://rclone.org/install.sh | sudo bash (or your package manager)
+# Settings → Cloud Storage detects and reports if it's missing, same as
+# the Intercom tab does for bluez/pipewire. Browsing/importing/exporting
+# single files (the non-continuous cloud storage path) doesn't need this
+# at all — only enabling a continuous sync pair does.
+
+# External Storage (see README's External Storage section) also shells
+# out to host tools, no pip packages:
+#   - udisksctl (udisks2)              — USB mount/unmount, no root needed
+#   - lsblk (util-linux)               — USB device discovery
+#   - mount.cifs (cifs-utils)          — SMB network shares
+#   - mount.nfs (nfs-common)           — NFS network shares
+# Settings/Access Control → External Storage detects and reports exactly
+# which of these is missing, same as the Intercom tab does for bluez/
+# pipewire. SMB/NFS additionally need root or passwordless sudo for
+# mount/umount — reported clearly with the exact sudoers line to add if not.
+
+# Notices changes in the synced Dropbox folder the moment they happen (instant two-way sync).
+watchdog>=3.0

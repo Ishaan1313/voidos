@@ -1,0 +1,43 @@
+# Secrets — never commit your real configuration
+.env
+.env.*
+!.env.example
+
+# Void OS data (accounts, sessions, logs, settings) — created at runtime
+users.json
+apps.json
+sessions.json
+shares.json
+app_stacks.json
+server_settings.json
+notify_settings.json
+notify_status.json
+notifications.json
+cloud_tokens.json
+cloud_sync.json
+external_storage.json
+bluetooth_devices.json
+staging_registry.json
+audit.log
+error_log.jsonl
+gate_audit.ndjson
+# Copies Void OS sets aside next to the data files (they hold password hashes / encrypted logins)
+*.pre-import-*
+*.unreadable-*
+rclone_conf/
+wallpapers/
+tmp/
+icon-cache/
+
+# Python
+__pycache__/
+*.pyc
+
+# Installer
+.venv/
+.tools/
+install.log
+voidos.log
+
+# App Store catalog: built from app_catalog.zip on startup (a cache)
+app_catalog/
