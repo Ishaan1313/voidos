@@ -141,6 +141,30 @@ _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 _EXTRA_ORIGINS = {o.strip().rstrip("/").lower()
                   for o in os.environ.get("VOID_ALLOWED_ORIGINS", "").split(",") if o.strip()}
 
+def _own_origin(origin: str) -> bool:
+    """True when `origin` is an address that serves THIS dashboard, learned from the setup itself so
+    nobody has to list it in VOID_ALLOWED_ORIGINS:
+      - the built-in Cloudflare tunnel address, and
+      - the host the browser really asked for, when a proxy on this machine or Cloudflare (the only
+        peers whose forwarding headers are believed) says so in X-Forwarded-Host. A reverse proxy or
+        forwarder that rewrites Host is the usual reason a legitimate page looked cross-site.
+    Per-app tunnel and custom-domain addresses are deliberately NOT trusted: they serve other apps, and
+    a page on one of those is exactly the sibling-site case this guard exists to stop."""
+    if not origin or origin == "null":
+        return False
+    from modules import state
+    tun = (getattr(state, "TUNNEL_URL", None) or "").strip().rstrip("/").lower()
+    if tun and origin == tun:
+        return True
+    xfh = request.headers.get("X-Forwarded-Host", "").split(",")[0].strip().lower()
+    if xfh and urlparse(origin).netloc == xfh:
+        from modules.auth import _is_cloudflare_ip
+        peer = request.remote_addr or ""
+        if peer in ("127.0.0.1", "::1") or _is_cloudflare_ip(peer):
+            return True
+    return False
+
+
 @app.before_request
 def _cross_site_guard():
     is_ws = request.headers.get("Upgrade", "").lower() == "websocket"
@@ -151,6 +175,9 @@ def _cross_site_guard():
         return
     site = request.headers.get("Sec-Fetch-Site", "").lower()
     if site in ("same-origin", "none"):
+        return
+    # The browser itself says "another site / a sibling subdomain": never excused by the own-address rule.
+    if site not in ("cross-site", "same-site") and _own_origin(origin):
         return
     if not site:
         if not origin:

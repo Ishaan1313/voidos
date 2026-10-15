@@ -5571,6 +5571,7 @@ async function rAccess(){
         <span style="font-size:12.5px;font-weight:600">USB Drives</span>
         <div style="display:flex;align-items:center;gap:8px;font-size:12px">
           ${ghSwitch('usbAutoMount',false)}<label for="usbAutoMount" style="cursor:pointer">Auto-mount on insert</label>
+          ${ghSwitch('usbAutoRepair',true)}<label for="usbAutoRepair" style="cursor:pointer" title="If the server lost power and a drive was left dirty, check and fix it before mounting">Repair after a power cut</label>
         </div>
       </div>
       <div id="usbList"><div class="loading"><div class="loader"></div></div></div>
@@ -5630,6 +5631,12 @@ async function rAccess(){
     if(r.ok)toast(checked?'USB auto-mount enabled':'USB auto-mount disabled','success');
     else{errToast(r,'Couldn\u2019t change USB auto-mount');e.target.checked=!checked}
   });
+  document.getElementById('usbAutoRepair')?.addEventListener('change',async e=>{
+    const checked=e.target.checked;
+    const r=await(await api('/api/storage/usb/auto-mount',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({auto_repair:checked})})).json();
+    if(r.ok)toast(checked?'Drives will be repaired after a power cut':'Automatic drive repair is off','success');
+    else{errToast(r,'Couldn\u2019t change automatic repair');e.target.checked=!checked}
+  });
 }
 let _storPlat='linux';
 async function loadStorageCapabilities(){
@@ -5652,6 +5659,8 @@ async function loadUsbList(){
   try{
     const d=await apiData('/api/storage/usb');
     document.getElementById('usbAutoMount').checked=!!d.auto_mount;
+    const rp=document.getElementById('usbAutoRepair');if(rp)rp.checked=d.auto_repair!==false;
+    if((d.repairing||[]).length&&!window._usbRepairPoll)window._usbRepairPoll=setTimeout(()=>{window._usbRepairPoll=null;loadUsbList()},5000);
     if(!d.devices.length){el.innerHTML='<div class="sdesc">No USB storage devices detected</div>';return}
     el.innerHTML=`<div class="user-table">${d.devices.map(dev=>`
       <div class="user-row">
@@ -5663,14 +5672,17 @@ async function loadUsbList(){
             ?`<button class="btn btn-g btn-sm" onclick="mountUsb(${jsA(dev.device)})" title="Make this drive browsable in Files under ${FS_DRIVES}/">Link to Files</button>`:''}
           ${dev.mountpoint
             ?`<button class="btn btn-d btn-sm" onclick="unmountUsb(${jsA(dev.device)})">${_storPlat==='windows'?'Eject':'Unmount'}</button>`
-            :`<button class="btn btn-g btn-sm" onclick="mountUsb(${jsA(dev.device)})">Mount</button>`}
+            :((d.repairing||[]).includes(dev.device)
+              ?`<button class="btn btn-g btn-sm" disabled title="Checking and repairing the file system">Repairing…</button>`
+              :`<button class="btn btn-g btn-sm" onclick="mountUsb(${jsA(dev.device)})">Mount</button>`)}
         </div>
       </div>`).join('')}</div>`;
   }catch(e){el.innerHTML=`<div class="sdesc" style="color:var(--rd)">Couldn’t load: ${esc(e.message)}</div>`}
 }
 async function mountUsb(device){
   const r=await(await api('/api/storage/usb/mount',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device})})).json();
-  if(r.ok){toast('Mounted','success');loadUsbList()}
+  if(r.ok&&r.repairing){toast(r.message||'Repairing the drive first…','info');loadUsbList()}
+  else if(r.ok){toast('Mounted','success');loadUsbList()}
   else errToast(r,'Mount failed');
 }
 async function unmountUsb(device){

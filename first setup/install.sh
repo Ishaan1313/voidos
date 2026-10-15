@@ -312,11 +312,11 @@ pkgs_for() {
     build:pacman) echo "base-devel" ;;
     build:zypper) echo "gcc python3-devel" ;;
     build:apk) echo "build-base python3-dev linux-headers" ;;
-    storage:apt-get) echo "udisks2 cifs-utils nfs-common util-linux" ;;
-    storage:dnf|storage:yum) echo "udisks2 cifs-utils nfs-utils util-linux" ;;
-    storage:pacman) echo "udisks2 cifs-utils nfs-utils util-linux" ;;
-    storage:zypper) echo "udisks2 cifs-utils nfs-client util-linux" ;;
-    storage:apk) echo "udisks2 cifs-utils nfs-utils util-linux" ;;
+    storage:apt-get) echo "udisks2 cifs-utils nfs-common util-linux e2fsprogs dosfstools exfatprogs ntfs-3g" ;;
+    storage:dnf|storage:yum) echo "udisks2 cifs-utils nfs-utils util-linux e2fsprogs dosfstools exfatprogs ntfs-3g" ;;
+    storage:pacman) echo "udisks2 cifs-utils nfs-utils util-linux e2fsprogs dosfstools exfatprogs ntfs-3g" ;;
+    storage:zypper) echo "udisks2 cifs-utils nfs-client util-linux e2fsprogs dosfstools exfatprogs ntfs-3g" ;;
+    storage:apk) echo "udisks2 cifs-utils nfs-utils util-linux e2fsprogs dosfstools exfatprogs ntfs-3g-progs" ;;
     node:apt-get|node:dnf|node:yum|node:pacman|node:zypper|node:apk) echo "nodejs npm" ;;
     intercom:apt-get) echo "bluez pipewire pipewire-bin wireplumber pipewire-audio libportaudio2" ;;
     intercom:dnf|intercom:yum) echo "bluez pipewire pipewire-utils wireplumber portaudio" ;;
@@ -579,9 +579,14 @@ if [[ $F_sync == 1 ]]; then any=1
 fi
 if [[ $F_mount == 1 && $OS == Linux && $RUN_USER != root && $HAVE_ROOT == 1 ]]; then any=1
   MNT=$(command -v mount); UMNT=$(command -v umount)
-  rule="$RUN_USER ALL=(root) NOPASSWD: $MNT, $UMNT"
+  # also the drive checkers (safe automatic modes only), so a drive left dirty by a power cut can be repaired
+  FSCK_LIST=""
+  for t in e2fsck fsck.vfat dosfsck fsck.fat fsck.exfat exfatfsck ntfsfix; do
+    p=$(command -v "$t" 2>/dev/null || true); [[ -n $p ]] && FSCK_LIST="$FSCK_LIST, $p"
+  done
+  rule="$RUN_USER ALL=(root) NOPASSWD: $MNT, $UMNT$FSCK_LIST"
   if echo "$rule" | as_root tee /etc/sudoers.d/voidos-mount >/dev/null && as_root chmod 0440 /etc/sudoers.d/voidos-mount \
-     && as_root visudo -cf /etc/sudoers.d/voidos-mount >>"$LOG" 2>&1; then ok "Password-less mount allowed for $RUN_USER"
+     && as_root visudo -cf /etc/sudoers.d/voidos-mount >>"$LOG" 2>&1; then ok "Password-less mount and drive repair allowed for $RUN_USER"
   else as_root rm -f /etc/sudoers.d/voidos-mount; warn "Couldn't add the sudo rule for mounting"; fi
 fi
 [[ $any == 0 ]] && info "No optional features selected"

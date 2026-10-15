@@ -53,10 +53,11 @@ def _ext_load() -> dict:
                 _ext_save(d)  # migrate an old plaintext file
             d.setdefault("network", [])
             d.setdefault("usb_auto_mount", False)
+            d.setdefault("usb_auto_repair", True)   # fix a drive left dirty by a power cut before mounting it
             d.setdefault("known_usb", {})  # device UUID -> {name, last_seen} — friendly names across reconnects
             return d
         except (OSError, ValueError):
-            return {"network": [], "usb_auto_mount": False, "known_usb": {}}
+            return {"network": [], "usb_auto_mount": False, "usb_auto_repair": True, "known_usb": {}}
 
 def _ext_save(d: dict) -> None:
     with _ext_lock:
@@ -98,7 +99,9 @@ def api_storage_usb_list():
             target = EXTERNAL_DIR / _ext_slugify(d.get("label") or d["device"])
             if external_storage.is_mounted(target):
                 d["bound_at"] = str(target.relative_to(FILE_ROOT))
-    return jsonify({"devices": devices, "auto_mount": ext.get("usb_auto_mount", False)})
+    return jsonify({"devices": devices, "auto_mount": ext.get("usb_auto_mount", False),
+                    "auto_repair": ext.get("usb_auto_repair", True),
+                    "repairing": sorted(_repairing)})
 
 @app.route("/api/storage/usb/mount", methods=["POST"])
 @require_admin
@@ -110,6 +113,14 @@ def api_storage_usb_mount():
         return jsonify({"error": "Invalid device"}), 400
     ok, msg = external_storage.mount_usb(device)
     if not ok:
+        info0 = {x["device"]: x for x in external_storage.list_usb_devices()}.get(device)
+        if info0 and _ext_load().get("usb_auto_repair", True) and external_storage.looks_corrupt(msg):
+            # The drive wasn't closed cleanly (a power cut). Repair it in the background and mount it after,
+            # so this request doesn't sit for minutes on a big drive.
+            if _start_repair(device, info0, user):
+                return jsonify({"ok": True, "repairing": True,
+                                "message": "This drive wasn't removed cleanly. Void OS is repairing it now and "
+                                           "will mount it when it's done; you'll get a notification."}), 202
         return jsonify({"error": msg}), 400
     bind_ok = None
     devices = {x["device"]: x for x in external_storage.list_usb_devices()}
@@ -160,10 +171,54 @@ def api_storage_usb_automount():
     d = request.get_json(silent=True) or {}
     with _ext_lock:
         ext = _ext_load()
-        ext["usb_auto_mount"] = bool(d.get("enabled"))
+        if "enabled" in d:
+            ext["usb_auto_mount"] = bool(d.get("enabled"))
+        if "auto_repair" in d:
+            ext["usb_auto_repair"] = bool(d.get("auto_repair"))
         _ext_save(ext)
-    _audit("usb_automount_changed", user, detail=str(ext["usb_auto_mount"]))
-    return jsonify({"ok": True, "auto_mount": ext["usb_auto_mount"]})
+    if "enabled" in d:
+        _audit("usb_automount_changed", user, detail=str(ext["usb_auto_mount"]))
+    if "auto_repair" in d:
+        _audit("usb_autorepair_changed", user, detail=str(ext["usb_auto_repair"]))
+    return jsonify({"ok": True, "auto_mount": ext["usb_auto_mount"], "auto_repair": ext["usb_auto_repair"]})
+
+# Drives being repaired right now (device paths), and when a drive was last tried by the watcher, so a
+# drive that can't be fixed isn't hammered every five seconds.
+_repairing: set = set()
+_repair_lock = threading.Lock()
+
+def _start_repair(device: str, info: dict, actor) -> bool:
+    """Repair `device` (a removable partition from list_usb_devices) in a background thread, then mount
+    it. Returns False when one is already running for it."""
+    with _repair_lock:
+        if device in _repairing:
+            return False
+        _repairing.add(device)
+    def job():
+        try:
+            fs = info.get("fstype")
+            _audit("usb_repair_started", actor, target=device, detail=str(fs or "unknown file system"))
+            fixed, summary = external_storage.repair_usb(device, fs)
+            if not fixed:
+                _audit("usb_repair_failed", actor, target=device, detail=summary[:300])
+                return
+            ok, real_mp = external_storage.mount_usb(device)
+            if not ok:
+                _audit("usb_repair_failed", actor, target=device,
+                       detail=f"Repaired, but it still won't mount: {str(real_mp)[:200]}")
+                return
+            priv_ok, _ = external_storage.check_bind_privilege()
+            if priv_ok:
+                target = EXTERNAL_DIR / _ext_slugify(info.get("label") or device)
+                external_storage.bind_mount(real_mp, str(target))
+            _audit("usb_repaired", actor, target=device, detail=f"{summary} Mounted at {real_mp}")
+        except Exception as e:
+            _audit("usb_repair_failed", actor, target=device, detail=f"Unexpected error: {e}"[:300])
+        finally:
+            with _repair_lock:
+                _repairing.discard(device)
+    threading.Thread(target=job, daemon=True, name=f"usb-repair-{device}").start()
+    return True
 
 def _usb_watcher_loop():
     """Polls for newly-inserted USB storage and auto-mounts it when the
@@ -173,14 +228,25 @@ def _usb_watcher_loop():
     dependency (pyudev) for what a 5-second poll already does reliably
     enough for a home-server USB drive, not a hot-swap-heavy workload."""
     seen = set()
+    tried: dict = {}      # device -> time of the last failed attempt; cleared when the drive is unplugged
     while True:
         try:
             ext = _ext_load()
+            present = {d["device"] for d in external_storage.list_usb_devices()}
+            for gone in [k for k in tried if k not in present]:
+                tried.pop(gone, None)
             if ext.get("usb_auto_mount"):
                 for dev in external_storage.list_usb_devices():
-                    if dev["device"] in seen or dev.get("mountpoint"):
+                    if dev["device"] in seen or dev.get("mountpoint") or dev["device"] in _repairing:
                         continue
+                    if time.time() - tried.get(dev["device"], 0) < 600:
+                        continue       # failed recently: try again in ten minutes, or when it is re-plugged
                     ok, real_mp = external_storage.mount_usb(dev["device"])
+                    if not ok:
+                        tried[dev["device"]] = time.time()
+                        if ext.get("usb_auto_repair", True) and external_storage.looks_corrupt(real_mp):
+                            _start_repair(dev["device"], dev, None)
+                        continue
                     if ok:
                         priv_ok, _ = external_storage.check_bind_privilege()
                         if priv_ok:

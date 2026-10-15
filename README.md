@@ -54,7 +54,7 @@ Every option is listed by `bash "first setup/install.sh" --help` / `.\install.ps
 <td width="50%"><img src="docs/screenshots/files.png" alt="Files"><br><sub>📁 <b>Files</b> — resumable uploads, share links, Recycle Bin, WebDAV, drives</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/appstore.png" alt="App Store"><br><sub>🛍️ <b>App Store</b> — 179 apps, one click each, previewed before install</sub></td>
+<td><img src="docs/screenshots/appstore.png" alt="App Store"><br><sub>🛍️ <b>App Store</b> — 180 apps, one click each, previewed before install</sub></td>
 <td><img src="docs/screenshots/terminal.png" alt="Terminal"><br><sub>💻 <b>Terminal</b> — real shells in the browser, several tabs, kept running between pages</sub></td>
 </tr>
 <tr>
@@ -87,7 +87,7 @@ Every option is listed by `bash "first setup/install.sh" --help` / `.\install.ps
 | | |
 |---|---|
 | 📁 **Files** | Browse, upload any size (resumable), share links with PINs, Recycle Bin, search, WebDAV network drive, USB drives and SMB/NFS shares |
-| 🛍️ **Apps** | A 179-app Docker App Store (refreshable without updating Void OS), dashboard tiles, container management |
+| 🛍️ **Apps** | A 180-app Docker App Store (refreshable without updating Void OS), dashboard tiles, container management |
 | 🌍 **Remote access** | A built-in Cloudflare Quick Tunnel (no account, no open ports), a separate tunnel per app, a PIN gate in front of tunneled apps |
 | 💻 **Terminal** | Real shells in the browser, as many tabs as you like |
 | ☁️ **Cloud** | Dropbox and Google Drive: browse, import, export, continuous two-way sync |
@@ -639,6 +639,28 @@ folder (upload, rename, share links, WebDAV).
 
 **USB drives** are detected automatically and mounted with `udisksctl` (no root
 needed). *Auto-mount on insert* mounts new drives as they're plugged in.
+
+**Repair after a power cut.** If the server loses power and a USB drive is left
+"dirty" (it won't mount: *structure needs cleaning*, *volume is dirty*, *unclean file
+system*), Void OS checks and fixes it before mounting, then mounts it and tells the
+admins in the bell. It only ever uses each file system's *safe, automatic* mode and
+never answers yes to a risky question:
+
+| File system | Checker | Mode |
+|---|---|---|
+| ext2 / ext3 / ext4 | `e2fsck` | `-p` (preen: only fixes that are always safe) |
+| FAT / FAT32 / vfat | `fsck.vfat` | `-a` (automatic, safe repairs) |
+| exFAT | `fsck.exfat` | `-p` |
+| NTFS | `ntfsfix` | `-d` (clears the dirty flag and replays the log) |
+| Windows drive letters | `chkdsk` | `/f /x` (needs Administrator) |
+| Btrfs, XFS, others | none | left alone and reported: repair them by hand |
+
+It runs in the background (a big drive can take a while; the list shows *Repairing…*),
+only on removable/USB drives, never on a mounted drive, and a drive that can't be fixed
+is retried at most every ten minutes or when you plug it in again. Turn it off with the
+*Repair after a power cut* switch next to *Auto-mount on insert*. On Linux the repair
+needs root: run Void OS as root, or install with `--with mount`, which also allows the
+checkers through sudo. Every step is in the activity log.
 Making a mounted drive browsable inside Files needs the same privilege as
 network shares; without it the drive still mounts at its normal location.
 

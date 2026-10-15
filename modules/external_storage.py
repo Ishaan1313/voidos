@@ -139,6 +139,103 @@ def list_usb_devices() -> list[dict]:
     return out_devices
 
 
+# ── Repair after an unclean shutdown ─────────────────────────────────
+# A power cut leaves a drive "dirty": the file system was never closed properly, and mounting it fails
+# with messages such as "structure needs cleaning" or "volume is dirty". Only the *safe, automatic*
+# modes of each file system's own checker are used (the ones meant for unattended boot-time repair):
+# nothing here ever answers "yes" to a risky question, deletes the journal or forces a rewrite. Anything
+# the safe mode can't fix is left alone and reported, with the drive untouched.
+_CORRUPT_HINTS = (
+    "structure needs cleaning", "needs cleaning", "unclean", "dirty", "corrupt", "bad superblock",
+    "can't read superblock", "cannot read superblock", "wrong fs type", "unknown filesystem type",
+    "not cleanly unmounted", "was not properly unmounted", "inconsistent", "journal", "input/output error",
+    "metadata", "hibernat", "fast restart",
+)
+REPAIR_TIMEOUT = 45 * 60          # a large drive can take a long time; this only stops a hung checker
+
+
+def looks_corrupt(message: str) -> bool:
+    m = (message or "").lower()
+    return any(h in m for h in _CORRUPT_HINTS)
+
+
+def repair_plan(fstype: str | None):
+    """(tool name(s), safe arguments, exit codes that mean "fixed or clean") for a file system, or None
+    when there is no safe unattended repair for it."""
+    f = (fstype or "").lower()
+    if f in ("ext2", "ext3", "ext4"):
+        return (("e2fsck",), ["-p"], {0, 1, 2})          # -p: preen = only fixes that are always safe
+    if f in ("vfat", "fat", "fat16", "fat32", "msdos"):
+        return (("fsck.vfat", "dosfsck", "fsck.fat"), ["-a"], {0, 1})   # -a: automatic, safe repairs
+    if f == "exfat":
+        return (("fsck.exfat", "exfatfsck"), ["-p"], {0, 1})
+    if f in ("ntfs", "ntfs3", "ntfs-3g", "fuseblk"):
+        return (("ntfsfix",), ["-d"], {0})               # -d: clear the dirty flag and replay the log
+    return None
+
+
+def _is_mounted_device(device: str) -> bool:
+    ok, out = _run(["lsblk", "-n", "-o", "MOUNTPOINT", device], timeout=10)
+    return ok and any(line.strip() for line in out.splitlines())
+
+
+def repair_usb(device: str, fstype: str | None) -> tuple[bool, str]:
+    """Run the safe checker on an UNMOUNTED removable partition. Returns (fixed_or_clean, plain summary)."""
+    if sys.platform == "win32":
+        return _repair_usb_windows(device)
+    plan = repair_plan(fstype)
+    if not plan:
+        return False, (f"This drive uses {fstype or 'an unknown file system'}, which can't be repaired "
+                       "automatically and safely. Check it on a computer with that file system's own tools.")
+    tools, args, good = plan
+    exe = next((t for t in tools if shutil.which(t)), None)
+    if not exe:
+        return False, (f"The repair tool for {fstype} ({tools[0]}) isn't installed. "
+                       "Install it (e2fsprogs / dosfstools / exfatprogs / ntfs-3g) and plug the drive in again.")
+    if _is_mounted_device(device):
+        return False, "The drive is mounted, so it can't be checked safely right now."
+    cmd = _priv([exe] + args + [device])
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=REPAIR_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return False, "The repair took too long and was stopped. The drive was not changed further."
+    except Exception as e:
+        return False, f"The repair could not start: {e}"
+    text = ((r.stdout or "") + (r.stderr or "")).strip()
+    tail = " ".join(text.split())[-240:]
+    low = text.lower()
+    # sudo's own refusal comes first: it also exits with 1, which e2fsck uses for "errors were fixed"
+    if (low.startswith("sudo:") or "\nsudo:" in low) and any(k in low for k in (
+            "password is required", "a terminal is required", "not in the sudoers", "may not run sudo",
+            "is not allowed to execute", "no tty present")):
+        return False, ("Repairing a drive needs administrator rights. Run the installer again with --with mount, "
+                       "or run Void OS as root.")
+    if r.returncode in good:
+        return True, f"Repaired with {exe} ({fstype})." + (f" {tail}" if tail and r.returncode else "")
+    return False, f"{exe} couldn't repair it automatically (exit {r.returncode}). {tail}".strip()
+
+
+def _repair_usb_windows(device: str) -> tuple[bool, str]:
+    m = re.fullmatch(r"([A-Za-z]):", device or "")
+    if not m:
+        return False, "Windows can only repair a drive that has a letter. Give it one in Disk Management, then try again."
+    letter = m.group(1).upper()
+    # chkdsk /f fixes file-system errors; /x dismounts the volume first so it never prompts.
+    try:
+        r = subprocess.run(["chkdsk", f"{letter}:", "/f", "/x"], capture_output=True, text=True,
+                           timeout=REPAIR_TIMEOUT, input="n\n")
+    except subprocess.TimeoutExpired:
+        return False, "The check took too long and was stopped."
+    except Exception as e:
+        return False, f"The check could not start: {e}"
+    text = " ".join(((r.stdout or "") + (r.stderr or "")).split())
+    if "access denied" in text.lower() or "sufficient privileges" in text.lower():
+        return False, "Windows needs Void OS to run as Administrator to repair a drive."
+    if r.returncode in (0, 1):
+        return True, f"Checked and repaired {letter}: with chkdsk."
+    return False, f"chkdsk couldn't repair {letter}: automatically (exit {r.returncode}). {text[-200:]}"
+
+
 def mount_usb(device: str) -> tuple[bool, str]:
     ok, out = _run(["udisksctl", "mount", "-b", device, "--no-user-interaction"])
     if ok:
