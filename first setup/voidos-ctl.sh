@@ -115,7 +115,7 @@ case "${1:-help}" in
   stop)    do_stop && echo "Void OS stopped." ;;
   restart) if have_systemd; then as_root systemctl restart "$SERVICE"; else do_stop; do_start; fi; wait_up && urls ;;
   status)
-    if have_systemd; then systemctl status "$SERVICE" --no-pager -l 2>/dev/null | sed -n 1,14p; fi
+    if have_systemd; then systemctl status "$SERVICE" --no-pager -l -n 0 2>/dev/null | sed -n 1,12p; echo "${D}recent log: voidos logs 20${N}"; fi
     if up; then echo "${G}${B}Void OS is running${N}"; urls; else echo "${R}${B}Void OS is not answering${N}  ${D}(voidos start, or voidos logs)${N}"; exit 3; fi ;;
   logs)
     shift || true
