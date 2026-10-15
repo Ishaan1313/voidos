@@ -10,7 +10,10 @@ each other).
 
 from flask import jsonify
 from flask import request
-from modules import diagnose, state
+import os
+import subprocess
+import threading
+from modules import diagnose, state, winplat
 from modules.activity import _audit
 from modules.system import _ci, _stats
 from modules.error_log import _current_user, _err
@@ -46,6 +49,64 @@ def api_ctr_act(cid):
         _audit("container_"+act, _current_user(), target=c.name)
         return jsonify({"ok":True,"status":c.status})
     except Exception as e: return _err(e)
+
+_REBUILDS: dict = {}               # container name -> {"done", "ok", "log"}  (last rebuild; in memory)
+_rebuild_lock = threading.Lock()
+
+def _rebuild_worker(name, cmd, cwd, user):
+    job = _REBUILDS[name]
+    try:
+        proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                encoding="utf-8", errors="replace", **winplat.no_window())
+        for line in proc.stdout:
+            job["log"].append(line.rstrip()[:500])
+            del job["log"][:-200]
+        job["ok"] = proc.wait() == 0
+    except Exception as e:
+        job["log"].append(f"Could not run docker compose: {e}")
+        job["ok"] = False
+    job["done"] = True
+    _audit("container_rebuilt" if job["ok"] else "container_rebuild_failed", user, target=name)
+
+@app.route("/api/containers/<cid>/rebuild", methods=["POST"])
+@require_docker_access
+def api_ctr_rebuild(cid):
+    """Re-create a container from its compose file, so an edited docker-compose.yml takes effect.
+    `docker compose up -d --build --force-recreate <service>` on the project the container came
+    from: images are rebuilt where the file builds one, volumes and data are kept."""
+    if not state.DOCKER_OK: return jsonify({"error":"Docker not available"}), 503
+    try:
+        c = state._docker.containers.get(cid)
+    except Exception as e: return _err(e, 404)
+    labels = (c.attrs.get("Config") or {}).get("Labels") or {}
+    files = [f for f in (labels.get("com.docker.compose.project.config_files") or "").split(",") if f.strip()]
+    project, service = labels.get("com.docker.compose.project"), labels.get("com.docker.compose.service")
+    if not (files and project and service):
+        return jsonify({"error": "This container wasn't created from a compose file, so it can't be rebuilt here. "
+                                 "Remove it and create it again."}), 400
+    missing = [f for f in files if not os.path.isfile(f)]
+    if missing:
+        return jsonify({"error": f"The compose file {missing[0]} isn't there any more, so there is nothing to rebuild from."}), 400
+    workdir = labels.get("com.docker.compose.project.working_dir") or os.path.dirname(files[0])
+    cmd = ["docker", "compose", "-p", project]
+    for f in files:
+        cmd += ["-f", f]
+    cmd += ["up", "-d", "--build", "--force-recreate", service]
+    name = c.name
+    with _rebuild_lock:
+        if name in _REBUILDS and not _REBUILDS[name]["done"]:
+            return jsonify({"error": "A rebuild of this container is already running."}), 409
+        _REBUILDS[name] = {"done": False, "ok": None, "log": []}
+    threading.Thread(target=_rebuild_worker, args=(name, cmd, workdir if os.path.isdir(workdir) else None, _current_user()),
+                     daemon=True, name=f"rebuild-{name}").start()
+    return jsonify({"ok": True, "name": name})
+
+@app.route("/api/containers/rebuild/<name>")
+@require_docker_access
+def api_ctr_rebuild_status(name):
+    j = _REBUILDS.get(name)
+    if not j: return jsonify({"error": "No rebuild in progress"}), 404
+    return jsonify({"done": j["done"], "ok": j["ok"], "log": "\n".join(j["log"][-60:])})
 
 @app.route("/api/containers/<cid>/logs")
 @require_docker_access

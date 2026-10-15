@@ -2865,6 +2865,7 @@ async function rCtrs(){
     g.querySelectorAll('.act.log').forEach(b=>b.addEventListener('click',()=>showLogs(b.dataset.id,b.dataset.n)));
     g.querySelectorAll('.act.why').forEach(b=>b.addEventListener('click',()=>showWhy(b.dataset.id,b.dataset.n)));
     g.querySelectorAll('.act.rm').forEach(b=>b.addEventListener('click',()=>showCtrRemoveDlg(b.dataset.id,b.dataset.n,b.dataset.img)));
+    g.querySelectorAll('.act.rebuild').forEach(b=>b.addEventListener('click',()=>ctrRebuild(b.dataset.id,b.dataset.n,b)));
   }catch(e){if(gen!==_renderGen)return;root.innerHTML+=`<div style="color:var(--rd);padding:16px">${esc(e.message)}</div>`}
 }
 function cCard(c){
@@ -2878,7 +2879,30 @@ function cCard(c){
     <button class="act" data-a="restart" data-id="${c.id}" data-n="${escA(c.name)}">\u21ba Restart</button>
     <button class="act log" data-id="${c.id}" data-n="${escA(c.name)}">\u{1F4CB} Logs</button>
     ${(c.status==='restarting'||(c.status!=='running'&&c.exit_code)||c.restarts>=3)?`<button class="act why" data-id="${c.id}" data-n="${escA(c.name)}" style="color:var(--yw)">\u26a0 Why?</button>`:''}
+    ${c.compose?`<button class="act rebuild" data-id="${c.id}" data-n="${escA(c.name)}" title="Re-create this container from its compose file (after you edit it)">\u{1F528} Rebuild</button>`:''}
     <button class="act rm" data-id="${c.id}" data-n="${escA(c.name)}" data-img="${escA(c.image)}">\u{1F5D1} Remove</button></div></div>`;
+}
+// Rebuild: `docker compose up -d --build --force-recreate` for this container's service, so an edited
+// compose file takes effect. The data (volumes, bind-mounted folders) is kept. Runs in the background.
+function ctrRebuild(id,name,btn){
+  confirmDlg(`Rebuild "${esc(name)}"? It is re-created from its compose file, so any change you made to the file takes effect. Its data is kept; the app is briefly offline.`,async()=>{
+    try{
+      const r=await api(`/api/containers/${id}/rebuild`,{method:'POST'});const d=await r.json();
+      if(!r.ok){errToast(d,'Could not rebuild');return}
+      toast(`Rebuilding ${name}\u2026`,'info');
+      for(let i=0;i<400;i++){
+        await new Promise(res=>setTimeout(res,3000));
+        let s;try{s=await(await api('/api/containers/rebuild/'+encodeURIComponent(d.name))).json()}catch(e){continue}
+        if(s.done){
+          if(s.ok)toast(`${name} was rebuilt`,'success');
+          else openMdl('Rebuild failed',`<div class="sdesc" style="margin-bottom:8px">Docker Compose reported a problem:</div><pre class="fv-rawjson" style="max-height:50vh;overflow:auto;background:var(--deep);border-radius:8px">${esc(s.log||'No output')}</pre>`,'<button class="btn btn-g" onclick="closeMdl()">Close</button>',true);
+          if(curV==='containers')rCtrs();
+          return;
+        }
+      }
+      toast('Still rebuilding \u2014 check the Containers page in a moment','info');
+    }catch(e){toast('Could not rebuild: '+e.message,'error')}
+  },'Rebuild',btn);
 }
 async function cAct(id,act,name){
   toast(`${act[0].toUpperCase()+act.slice(1)}ing ${name}\u2026`,'info');

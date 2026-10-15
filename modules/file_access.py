@@ -95,6 +95,30 @@ def _name_error(name: str) -> str | None:
         return "That name contains an invalid character."
     return winplat.win_name_problem(name)
 
+def _app_data_in_use(name: str, path: Path) -> bool:
+    """True when an installed App Store app uses this folder under app-data, or a Docker container
+    (running or not) has it mounted. When that can't be told (Docker not reachable), the folder
+    is treated as in use only if it belongs to a recorded install."""
+    try:
+        from modules.config import STACKS_FILE
+        for s in json.loads(STACKS_FILE.read_text(encoding="utf-8")):
+            if isinstance(s, dict) and s.get("instance_id") == name:
+                return True
+    except (OSError, ValueError):
+        pass
+    try:
+        from modules import state
+        if getattr(state, "DOCKER_OK", False) and state._docker is not None:
+            root = os.path.normcase(os.path.normpath(str(path)))
+            for c in state._docker.containers.list(all=True):
+                for m in (c.attrs.get("Mounts") or []):
+                    src = os.path.normcase(os.path.normpath(str(m.get("Source") or "")))
+                    if src and (src == root or src.startswith(root + os.sep)):
+                        return True
+    except Exception:
+        pass
+    return False
+
 def _protected_reason(p: Path) -> str | None:
     """Folders that make up Void OS's own structure and must never be
     deleted, moved, renamed or overwritten through the file APIs or WebDAV
@@ -118,7 +142,9 @@ def _protected_reason(p: Path) -> str | None:
         if parts == app_rel:
             return "the App data folder"
         if len(parts) == len(app_rel) + 1 and parts[:len(app_rel)] == app_rel:
-            return "an installed app's data folder: uninstall the app from the App Store instead"
+            if _app_data_in_use(parts[-1], p):
+                return "an installed app's data folder: uninstall the app from the App Store instead"
+            return None            # left behind by an uninstalled or failed install: the Super User may remove it
     legacy_home = ("home",) if (SHARED_PARTS[0] == "home" or USERS_PARTS[0] == "home") else None
     if parts in (SHARED_PARTS, USERS_PARTS, DRIVES_PARTS, (TRASH_DIRNAME,)) or (legacy_home and parts == legacy_home):
         return f"the {parts[-1]} folder"

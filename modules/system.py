@@ -270,6 +270,7 @@ def _ci(c):
             "image":c.image.tags[0] if c.image.tags else c.image.short_id,
             "status":c.status,"ports":ports,"created":c.attrs.get("Created","")[:10],
             "restarts":int(c.attrs.get("RestartCount") or 0),
+            "compose":bool(((c.attrs.get("Config") or {}).get("Labels") or {}).get("com.docker.compose.project.config_files")),
             "exit_code":(c.attrs.get("State") or {}).get("ExitCode")}
     except Exception as e:
         app.logger.exception(f"[_ci] {e}")
