@@ -87,6 +87,34 @@ def send_discord(webhook_url: str, title: str, body: str) -> tuple[bool, str]:
     return False, info or f"Discord returned HTTP {status}."
 
 
+_IFTTT_KEY_RE = re.compile(r"[A-Za-z0-9_-]{10,64}")
+_IFTTT_EVENT_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+def send_ifttt(key: str, event: str, title: str, body: str, server: str = "Void OS") -> tuple[bool, str]:
+    """Fire an IFTTT Webhooks event: POST https://maker.ifttt.com/trigger/<event>/with/key/<key> with value1 = the
+    title, value2 = the details and value3 = the server's name. What happens next (a phone notification, an SMS, a
+    message in another app) is whatever applet the owner attached to that event in IFTTT."""
+    key, event = (key or "").strip(), (event or "").strip() or "voidos_alert"
+    if not _IFTTT_KEY_RE.fullmatch(key):
+        return False, ("That doesn't look like an IFTTT Webhooks key. Open ifttt.com/maker_webhooks, press "
+                       "Documentation and copy the key shown there (letters and digits only, not the whole URL).")
+    if not _IFTTT_EVENT_RE.fullmatch(event):
+        return False, "The event name can only contain letters, digits, underscores and hyphens."
+    url = f"https://maker.ifttt.com/trigger/{event}/with/key/{key}"
+    ok, status, info = _http_post_json(url, {"value1": title[:250], "value2": body[:1500], "value3": server[:80]}, "IFTTT")
+    if ok:
+        return True, "Delivered to IFTTT (IFTTT only confirms it got the event; check the applet's Activity page to see it ran)"
+    if status in (401, 403):
+        return False, ("IFTTT says that key isn't valid. Open ifttt.com/maker_webhooks, press Documentation and "
+                       "copy the key again.")
+    if status == 429:
+        return False, "IFTTT is rate-limiting this key (too many events); it will recover on its own."
+    if status >= 500:
+        return False, f"IFTTT is having trouble right now (HTTP {status}); it will be retried."
+    return False, info or f"IFTTT returned HTTP {status}."
+
+
 def send_telegram(bot_token: str, chat_id: str, title: str, body: str) -> tuple[bool, str]:
     # HTML mode with escaping. The previous parse_mode="Markdown" made
     # Telegram reject (HTTP 400 "can't parse entities") any message whose

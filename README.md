@@ -1097,12 +1097,19 @@ Panic, Super User transfer, backup restore, a cleared log), low disk space, and
 failing notification channels. Repeated security events collapse to one item per
 10 minutes.
 
-### Email, Discord and Telegram
+### Email, Discord, Telegram and IFTTT
 
 **Settings → Notifications**: turn on any channel and choose which events send.
 Admins can see the settings; the **Super User** changes them and sends test
 messages.
 
+- **IFTTT** turns each alert into whatever you build there: a phone notification, an SMS, a message in
+  another app. In IFTTT make an applet that starts with *Webhooks → Receive a web request* and an event
+  name (default `voidos_alert`), then paste your key from
+  [ifttt.com/maker_webhooks](https://ifttt.com/maker_webhooks) → Documentation into Settings → Notifications → IFTTT. Void OS
+  sends `https://maker.ifttt.com/trigger/<event>/with/key/<key>` with `Value1` = the alert's title,
+  `Value2` = its details and `Value3` = the server's name. IFTTT only confirms it received the event, so
+  check the applet's Activity page the first time. The key is stored encrypted and never sent back to the browser.
 - Each channel shows its **last delivery result** and, if it failed, why in plain
   words (*"Gmail needs an app password"*, *"this Discord webhook was deleted"*,
   *"send the bot a message first"*, *"465 = SSL, 587 = STARTTLS"*).

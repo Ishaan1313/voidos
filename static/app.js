@@ -1795,6 +1795,8 @@ const NOTIFY_EVENT_LABELS={
   sessions_revoked_others:'Other sessions revoked',backup_exported:'Backup exported',
   cross_site_blocked:'Cross-site request blocked',disk_space_low:'Disk space low',app_install_failed:'App install failed',cloud_sync_failed:'Cloud sync failing',
   backup_imported:'Backup imported',audit_log_cleared:'Audit log cleared',
+  storage_root_missing:'Storage drive not present',storage_root_restored:'Storage drive is back',
+  usb_auto_mount_failed:'USB drive couldn’t be mounted',usb_repair_failed:'USB drive repair failed',
 };
 // ── Settings → Updates (Super User) ────────────────────────────────────
 let _updPoll=null;
@@ -1973,6 +1975,22 @@ async function loadNotifyPanel(){
           ${IS_SUPERUSER?'<button class="btn btn-p btn-sm" onclick="saveNotifyChannel(\'telegram\')">Save</button>':''}
         </div>
       </div>
+      <div class="notify-channel">
+        <div class="notify-ch-head">${ghSwitch('nIftttEn',cfg.ifttt.enabled,dis)}<label for="nIftttEn" style="cursor:pointer;font-weight:600">IFTTT</label>
+          ${IS_SUPERUSER?'<button class="btn btn-g btn-sm" style="margin-left:auto" onclick="testNotifyChannel(\'ifttt\')">Send test</button>':''}</div>
+        ${notifyStatusLine(cfg.status&&cfg.status.ifttt)}
+        <div class="notify-ch-body" data-ch="ifttt">
+          <div class="sdesc" style="margin-bottom:8px">IFTTT turns each alert into whatever you set up there: a phone notification, an SMS, a message in
+            another app. In IFTTT, create an applet that starts with <b>Webhooks → Receive a web request</b> using the event name below,
+            then copy your key from <a href="https://ifttt.com/maker_webhooks" target="_blank" rel="noopener">ifttt.com/maker_webhooks</a> → Documentation.
+            The alert's title is <code>Value1</code>, its details <code>Value2</code> and the server's name <code>Value3</code>.</div>
+          <div class="fg"><label class="fgl">Webhooks key ${cfg.ifttt.has_key?'(saved — leave blank to keep)':''}</label>
+            <input class="fgi" id="nIftttKey" type="password" ${dis} autocomplete="off" placeholder="${cfg.ifttt.has_key?'••••••••••':'your IFTTT Webhooks key'}"/></div>
+          <div class="fg"><label class="fgl">Event name</label>
+            <input class="fgi" id="nIftttEvent" ${dis} value="${escA(cfg.ifttt.event||'voidos_alert')}" placeholder="voidos_alert"/></div>
+          ${IS_SUPERUSER?'<button class="btn btn-p btn-sm" onclick="saveNotifyChannel(\'ifttt\')">Save</button>':''}
+        </div>
+      </div>
       <div class="notify-events">
         <div class="fs-title" style="padding-left:0">Notify me for</div>
         ${Object.entries(NOTIFY_EVENT_LABELS).map(([k,label])=>`
@@ -1986,8 +2004,8 @@ async function loadNotifyPanel(){
         document.getElementById('nEv-'+k)?.addEventListener('change',e=>
           api('/api/admin/notifications',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({events:{[k]:e.target.checked}})}));
       });
-      ['nEmailEn','nDiscordEn','nTelegramEn'].forEach(id=>{
-        document.getElementById(id)?.addEventListener('change',()=>saveNotifyChannel({nEmailEn:'email',nDiscordEn:'discord',nTelegramEn:'telegram'}[id]));
+      ['nEmailEn','nDiscordEn','nTelegramEn','nIftttEn'].forEach(id=>{
+        document.getElementById(id)?.addEventListener('change',()=>saveNotifyChannel({nEmailEn:'email',nDiscordEn:'discord',nTelegramEn:'telegram',nIftttEn:'ifttt'}[id]));
       });
     }
   }catch(e){el.innerHTML=`<div class="sdesc" style="color:var(--rd)">Couldn’t load: ${esc(e.message)}</div>`}
@@ -1998,6 +2016,8 @@ async function saveNotifyChannel(channel){
     smtp_port:parseInt(document.getElementById('nSmtpPort').value,10)||587,username:document.getElementById('nSmtpUser').value.trim(),
     password:document.getElementById('nSmtpPass').value,from_addr:document.getElementById('nSmtpFrom').value.trim(),to_addr:document.getElementById('nSmtpTo').value.trim()};
   else if(channel==='discord')body={enabled:document.getElementById('nDiscordEn').checked,webhook_url:document.getElementById('nDiscordUrl').value.trim()};
+  else if(channel==='ifttt')body={enabled:document.getElementById('nIftttEn').checked,key:document.getElementById('nIftttKey').value.trim(),
+    event:(document.getElementById('nIftttEvent').value||'').trim()||'voidos_alert'};
   else body={enabled:document.getElementById('nTelegramEn').checked,bot_token:document.getElementById('nTgToken').value.trim(),chat_id:document.getElementById('nTgChat').value.trim()};
   const r=await(await api('/api/admin/notifications',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[channel]:body})})).json();
   if(r.ok){toast(channel[0].toUpperCase()+channel.slice(1)+' saved','success');loadNotifyPanel()}

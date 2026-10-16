@@ -556,6 +556,7 @@ def api_notify_get():
     if safe["discord"]["webhook_url"]:
         safe["discord"]["webhook_url"] = safe["discord"]["webhook_url"][:20] + "…"
     safe["telegram"]["has_token"] = bool(safe["telegram"].pop("bot_token", ""))
+    safe["ifttt"]["has_key"] = bool(safe["ifttt"].pop("key", ""))
     safe["status"] = _notify_status_load()  # last delivery result per channel
     return jsonify(safe)
 
@@ -575,12 +576,12 @@ def api_notify_patch():
             for k, v in d["events"].items():
                 if k in MAJOR_EVENTS:
                     cfg["events"][k] = bool(v)
-        for channel in ("email", "discord", "telegram"):
+        for channel in ("email", "discord", "telegram", "ifttt"):
             if channel in d and isinstance(d[channel], dict):
                 incoming = dict(d[channel])
                 # blank password/token/webhook in the payload means "keep what's already saved" —
                 # the GET response never contains the real secret to send back unmodified
-                for secret_key in ("password", "webhook_url", "bot_token"):
+                for secret_key in ("password", "webhook_url", "bot_token", "key"):
                     if secret_key in incoming and not incoming[secret_key]:
                         incoming.pop(secret_key)
                 cfg[channel].update(incoming)
@@ -591,13 +592,13 @@ def api_notify_patch():
 @app.route("/api/admin/notifications/test/<channel>", methods=["POST"])
 @require_superuser
 def api_notify_test(channel):
-    if channel not in ("email", "discord", "telegram"):
+    if channel not in ("email", "discord", "telegram", "ifttt"):
         return jsonify({"error": "Unknown channel"}), 404
     cfg = _notify_load()
     if not cfg[channel]["enabled"]:
         return jsonify({"error": f"{channel.title()} isn't enabled"}), 400
     single = {"email": dict(_NOTIFY_DEFAULTS["email"]), "discord": dict(_NOTIFY_DEFAULTS["discord"]),
-              "telegram": dict(_NOTIFY_DEFAULTS["telegram"])}
+              "telegram": dict(_NOTIFY_DEFAULTS["telegram"]), "ifttt": dict(_NOTIFY_DEFAULTS["ifttt"])}
     single[channel] = cfg[channel]
     single["events"] = cfg["events"]
     result = _notify_dispatch(single, "\u2705 Void OS test notification",
