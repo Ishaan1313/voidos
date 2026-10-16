@@ -519,8 +519,10 @@ def _pw_explain(line: str) -> str:
     return f"PipeWire reported: {line[:200]}"
 
 
-def _pw_spawn(cmd: list, what: str, **kw):
-    """Start a pw-record/pw-play process, and say why in plain words if it dies straight away."""
+def _pw_spawn(cmd: list, what: str, settle: float = 0.25, **kw):
+    """Start a pw-record/pw-play process, and say why in plain words if it dies straight away.
+    `settle` is how long to wait before judging it alive (a Bluetooth speaker needs longer to take the stream).
+    What the tool prints on stderr is kept (p.err_tail) so a later failure can be explained."""
     try:
         p = subprocess.Popen(cmd, stderr=subprocess.PIPE, **kw)
     except FileNotFoundError:
@@ -528,7 +530,9 @@ def _pw_spawn(cmd: list, what: str, **kw):
                          "(sudo apt install pipewire-bin pipewire-audio).")
     except OSError as e:
         raise AudioError(f"Couldn't use the {what}: could not start {cmd[0]} ({e}).")
-    time.sleep(0.25)
+    end = time.time() + settle
+    while time.time() < end and p.poll() is None:
+        time.sleep(0.05)
     if p.poll() is not None:
         try:
             lines = (p.stderr.read() or b"").decode("utf-8", "replace").strip().splitlines()
@@ -537,10 +541,14 @@ def _pw_spawn(cmd: list, what: str, **kw):
         raise AudioError(f"Couldn't use the {what}: " + _pw_explain(
             lines[-1] if lines else f"{cmd[0]} stopped (exit code {p.returncode})"))
 
+    p.err_tail = collections.deque(maxlen=6)
+
     def _drain():
         try:
-            for _ in iter(p.stderr.readline, b""):
-                pass
+            for raw in iter(p.stderr.readline, b""):
+                line = raw.decode("utf-8", "replace").strip()
+                if line:
+                    p.err_tail.append(line)
         except Exception:
             pass
     threading.Thread(target=_drain, daemon=True, name="ic-pw-err").start()
@@ -553,7 +561,7 @@ class _PwInput:
         self._cv = threading.Condition()
         self._closed = False
         self._p = _pw_spawn(["pw-record"] + ([] if node == DEFAULT_ID else ["--target", node])
-                            + ["--format", "s16", "--rate", str(RATE), "--channels", "1", "-"],
+                            + ["--raw", "--format", "s16", "--rate", str(RATE), "--channels", "1", "-"],
                             "microphone", stdout=subprocess.PIPE)
         threading.Thread(target=self._pump, daemon=True, name="ic-pw-in").start()
 
@@ -598,8 +606,8 @@ class _PwOutput:
         self._cv = threading.Condition()
         self._closed = False
         self._p = _pw_spawn(["pw-play"] + ([] if node == DEFAULT_ID else ["--target", node])
-                            + ["--format", "s16", "--rate", str(RATE), "--channels", "1", "-"],
-                            "speaker", stdin=subprocess.PIPE)
+                            + ["--raw", "--format", "s16", "--rate", str(RATE), "--channels", "1", "-"],
+                            "speaker", stdin=subprocess.PIPE, settle=1.2 if "bluez" in node.lower() else 0.25)
         threading.Thread(target=self._pump, daemon=True, name="ic-pw-out").start()
 
     def _pump(self):
@@ -636,6 +644,12 @@ class _PwOutput:
     @property
     def healthy(self) -> bool:
         return (not self._closed) and self._p.poll() is None
+
+    @property
+    def why(self) -> str:
+        """What the player last said before it stopped (empty if nothing)."""
+        tail = list(getattr(self._p, "err_tail", []) or [])
+        return (_pw_explain(tail[-1]) + f" (PipeWire said: {tail[-1][:140]})") if tail else ""
 
     def close(self):
         self._closed = True

@@ -430,7 +430,9 @@ class _Sink:
         st = self.stream
         try:
             if getattr(st, "healthy", True) is False:
-                err = "the speaker disconnected (switched off, out of range or unplugged)"
+                why = getattr(st, "why", "")
+                err = ("the speaker stopped: " + why) if why else \
+                      "the speaker disconnected (switched off, out of range or unplugged)"
             else:
                 st.write(pcm)
         except Exception as e:
