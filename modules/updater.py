@@ -195,6 +195,25 @@ def _restart_soon():
     threading.Thread(target=go, daemon=True).start()
 
 
+KEEP_BACKUPS = 3        # old versions kept in tmp/update for rolling back
+
+
+def prune_backups(keep: int = KEEP_BACKUPS):
+    """Keep only the newest `keep` version backups, and drop leftovers of interrupted downloads."""
+    try:
+        if not UPDATE_DIR.exists():
+            return
+        bks = sorted((p for p in UPDATE_DIR.glob("backup-*") if p.is_dir()),
+                     key=lambda p: _vtuple(p.name[len("backup-"):]), reverse=True)
+        for p in bks[keep:]:
+            shutil.rmtree(p, ignore_errors=True)
+        if not _job.get("state") == "running":
+            for p in UPDATE_DIR.glob("job-*"):
+                shutil.rmtree(p, ignore_errors=True)
+    except Exception as e:
+        _log_exception(e, source="job", context="prune update backups")
+
+
 def _step(msg, pct=None):
     _job["step"] = msg
     if pct is not None:
@@ -289,6 +308,7 @@ def _install_worker(manifest: dict, user: dict):
                 shutil.copy2(str(kept), str(VOID_ROOT / "static" / "rick.mp4"))
         except OSError:
             pass
+        prune_backups()
         _step("Restarting", 98)
         _audit("update_installed", user, detail=f"{old} → {manifest['version']}")
         _job.update(state="done", progress=100, version=manifest["version"],
@@ -354,6 +374,7 @@ def _auto_check_loop():
     """Daily check; tells every Super User once per new version."""
     time.sleep(90)
     while True:
+        prune_backups()
         if UPDATES_ENABLED and UPDATE_REPO and UPDATE_CHECK:
             st = check_for_update()
             latest = st.get("latest")

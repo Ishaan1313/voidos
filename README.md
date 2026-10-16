@@ -1247,7 +1247,7 @@ installs without the Super User pressing Install**. Installing:
    really is a Void OS release of the expected version;
 3. installs its Python packages first — if that fails, nothing has changed;
 4. copies the current program files to `tmp/update/backup-<version>/`, swaps in
-   the new ones (undone automatically if anything fails), and
+   the new ones (undone automatically if anything fails). Only the newest 3 backups are kept; older ones are deleted, and
 5. restarts — anyone using Void OS sees the reconnect screen for a moment.
 
 `.env`, accounts, sessions, share links, your files, app data, logs and `.venv`
