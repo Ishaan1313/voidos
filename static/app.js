@@ -5322,6 +5322,14 @@ function liveRefresh(kind){
     }catch(_){}
   },250);
 }
+// A red bar across the top while the storage drive (VOID_FILE_ROOT) isn't present; it goes away by itself.
+function showRootBanner(root){
+  let b=document.getElementById('rootBanner');
+  if(!root||root.ok!==false){if(b)b.remove();return}
+  if(!b){b=document.createElement('div');b.id='rootBanner';b.setAttribute('role','alert');document.body.appendChild(b)}
+  const msg=`The storage drive isn\u2019t present (${root.path||'the files folder'}). Files, uploads, drives and cloud sync are paused until it is back.`;
+  if(b.textContent!==msg)b.textContent=msg;
+}
 let _accessBusy=false;
 async function accessCheck(){
   if(_accessBusy||_endingSession)return;
@@ -5331,6 +5339,7 @@ async function accessCheck(){
     if(r.status===401){endSessionNow('session_revoked');return}
     if(!r.ok)return;
     const a=await r.json();
+    showRootBanner(a.root);
     const diff=a.role!==ROLE||!!a.can_terminal!==CAN_TERM||!!a.can_docker!==CAN_DOCK||!!a.can_intercom!==CAN_INTERCOM||!!a.full_files!==FULL_FILES||!!a.can_admin!==IS_ADMIN;
     if(diff)applyPermissionsUpdate(a);
   }catch(_){}finally{_accessBusy=false}

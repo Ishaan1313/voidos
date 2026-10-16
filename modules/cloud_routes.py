@@ -22,7 +22,7 @@ import shutil
 import threading
 import time
 import uuid
-from modules import cloud_storage, cloud_sync, secret_store, winplat
+from modules import cloud_storage, cloud_sync, rootguard, secret_store, winplat
 from modules.config import (
     CLOUD_SYNC_FILE, CLOUD_TOKENS_FILE, FILE_ROOT, GUEST_QUOTA_MB, MIN_FREE_MB, TMP_DIR, USERS_DIR, USERS_REL,
     VOID_ROOT,
@@ -314,7 +314,30 @@ def _sync_pairs_save(pairs: list) -> None:
     with _sync_lock:
         _atomic_write_json(CLOUD_SYNC_FILE, pairs)
 
+cloud_sync.ROOT_CHECK = lambda: (rootguard.ok(), "")
+
+
+def _pause_sync_pairs() -> None:
+    """The storage drive went away: stop every sync loop (the pairs stay saved and resume when it is back)."""
+    for pid in list(_sync_supervisors):
+        _sync_stop_supervisor(pid)
+        st = _sync_status.setdefault(pid, {})
+        st.update(ok=True, state="idle", message="Paused: the storage drive isn't present.", at=time.time())
+
+
+def _resume_sync_pairs() -> None:
+    for pair in _sync_pairs_load():
+        if pair.get("enabled") and pair["id"] not in _sync_supervisors:
+            try:
+                _sync_start_supervisor(pair)
+            except Exception as e:
+                app.logger.warning(f"Failed to resume sync pair {pair.get('id')}: {e}")
+
+
 def _sync_on_result(pair_id, ok, message, at):
+    if str(message).startswith("Paused:"):        # not a failure: just waiting for the drive
+        _sync_status[pair_id] = {"ok": True, "message": message, "at": at, "state": "idle"}
+        return
     prev = _sync_status.get(pair_id)
     _sync_status[pair_id] = {"ok": ok, "message": message, "at": at, "state": (prev or {}).get("state", "idle")}
     was_ok = prev is None or prev.get("ok")
@@ -383,6 +406,8 @@ def _sync_on_state(pair_id, state):
     st["state"] = state
 
 def _sync_start_supervisor(pair: dict) -> None:
+    if not rootguard.ok():                 # started again by rootguard when the drive returns
+        return
     local_path = FILE_ROOT / pair["local_path"]
     sup = cloud_sync.SyncSupervisor(
         pair_id=pair["id"], get_remote=lambda: _sync_remote_env(pair), remote_name=pair["remote_name"],

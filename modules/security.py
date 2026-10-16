@@ -85,6 +85,9 @@ def _rewrite_layout_paths():
     rewrite(_void_path("VOID_STAGING_REGISTRY", "staging_registry.json"), absolute=True)
 
 def _init_filesystem():
+    from modules import rootguard
+    if not rootguard.ok():                # the storage drive isn't present: create nothing in its place
+        return
     SHARED_DIR.mkdir(parents=True, exist_ok=True)
     USERS_DIR.mkdir(parents=True, exist_ok=True)
     try:

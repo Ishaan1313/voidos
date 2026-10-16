@@ -60,7 +60,7 @@ def _ensure_requirements():
 if __name__ == "__main__" and "--skip-package-check" not in sys.argv:
     _ensure_requirements()
 
-_MODULES = ['config', 'web', 'users', 'twofactor', 'limits', 'auth', 'activity', 'error_log', 'decorators', 'file_access', 'security', 'system', 'file_helpers', 'account_routes', 'cloud_routes', 'storage_routes', 'admin_routes', 'twofa_routes', 'diagnose', 'container_routes', 'file_routes', 'file_preview', 'file_ops', 'trash_zip_routes', 'shares', 'webdav', 'intercom_routes', 'domains', 'app_tiles', 'app_store', 'disk_monitor', 'app_store_routes', 'live_sockets', 'tunnels', 'updater', 'catalog_update']
+_MODULES = ['config', 'web', 'rootguard', 'users', 'twofactor', 'limits', 'auth', 'activity', 'error_log', 'decorators', 'file_access', 'security', 'system', 'file_helpers', 'account_routes', 'cloud_routes', 'storage_routes', 'admin_routes', 'twofa_routes', 'diagnose', 'container_routes', 'file_routes', 'file_preview', 'file_ops', 'trash_zip_routes', 'shares', 'webdav', 'intercom_routes', 'domains', 'app_tiles', 'app_store', 'disk_monitor', 'app_store_routes', 'live_sockets', 'tunnels', 'updater', 'catalog_update']
 for _m in _MODULES:
     try:
         importlib.import_module(f"modules.{_m}")

@@ -22,7 +22,7 @@ from modules.config import (
 from modules.web import _atomic_write_json
 from modules.users import _ensure_user_subfolders, _users_load
 from modules.error_log import _has_full_file_access
-from modules import external_storage, winplat
+from modules import external_storage, rootguard, winplat
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -200,6 +200,7 @@ def _external_link_path(raw: str):
 
 def _safe(raw: str, user: dict | None = None) -> Path:
     """Resolve path within FILE_ROOT and enforce user permissions."""
+    rootguard.require()                  # the storage drive must really be there (raises RootMissing otherwise)
     candidate = (FILE_ROOT / raw.lstrip("/\\")).resolve()
     try:
         candidate.relative_to(FILE_ROOT)

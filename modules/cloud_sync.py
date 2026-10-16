@@ -192,10 +192,15 @@ def clear_stale_locks(remote_name: str) -> int:
     return removed
 
 
+ROOT_CHECK = None          # set by rootguard users: () -> (ok, reason); a sync never runs while the storage root is missing
+
+
 def run_bisync(remote_name: str, remote_vars: dict, remote_path: str, local_path: Path,
                 resync: bool = False, timeout_s: int = 0, provider: str = "") -> tuple[bool, str]:
     if not timeout_s:                  # the first full download of an account may take hours
         timeout_s = 12 * 3600 if resync else 1800
+    if ROOT_CHECK is not None and not ROOT_CHECK()[0]:
+        return False, "Paused: the storage drive isn't present (nothing was synced, created or deleted)."
     local_path.mkdir(parents=True, exist_ok=True)
     # A path that rclone may create/write during the run (it saves refreshed
     # tokens there) — deleted afterwards so no token is ever left at rest.

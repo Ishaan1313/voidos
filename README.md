@@ -344,6 +344,17 @@ permission is off) only ever see My Files and Shared. The structural folders
 drive) can't be deleted, moved or renamed by anyone — they don't offer those
 actions in the menus either. The Recycle Bin is a hidden `.void-trash/` folder.
 
+**If the storage drive goes missing.** Void OS keeps a small marker file (`.void-root`) in the
+Files folder and remembers its id. While that marker isn't readable and matching (the drive was
+unplugged and only an empty mount point is left, or a different drive is mounted there), the Files
+routes, uploads, trash, share links, WebDAV, USB/network-share mounting and cloud sync all answer
+*"The storage drive isn't present"* and do nothing, instead of writing onto the system disk in the
+drive's place. A red bar shows across the page, the admins get a notification, and cloud syncs are
+paused (not deleted). When the drive is back, everything resumes by itself, with no restart. Accounts,
+settings and logs live in the Void OS folder, so Void OS itself keeps running. The folder has to be
+writable by the Void OS user for the marker to be created (without one, no check is done).
+Docker apps whose data is under the Files folder are not stopped.
+
 **Upgrading from an older version.** Older installs used `home/shared`,
 `home/personal` and `external`. On the first start they're renamed to `Shared`,
 `Users` and `Drives`, and share links, sync pairs and Recycle Bin records are

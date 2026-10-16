@@ -229,8 +229,12 @@ def _usb_watcher_loop():
     enough for a home-server USB drive, not a hot-swap-heavy workload."""
     seen = set()
     tried: dict = {}      # device -> time of the last failed attempt; cleared when the drive is unplugged
+    from modules import rootguard
     while True:
         try:
+            if not rootguard.ok():            # mounting would create Drives/<name> on the system disk instead
+                time.sleep(5)
+                continue
             ext = _ext_load()
             present = {d["device"] for d in external_storage.list_usb_devices()}
             for gone in [k for k in tried if k not in present]:

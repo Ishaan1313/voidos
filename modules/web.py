@@ -275,6 +275,15 @@ def _resync_all_live_users():
             _notify_permissions_changed(uid, u)
 
 
+def _root_state() -> dict:
+    try:
+        from modules import rootguard
+        s = rootguard.status()
+        return {"ok": s["ok"], "reason": s["reason"], "path": s["path"]}
+    except Exception:
+        return {"ok": True, "reason": "", "path": ""}
+
+
 def _access_payload(user_obj: dict | None) -> dict:
     """What the page needs to draw the right navigation and controls for this account. One definition,
     used for the live push and for the page's own re-check, so the two can never disagree."""
@@ -287,6 +296,7 @@ def _access_payload(user_obj: dict | None) -> dict:
         "can_intercom": _can_use_intercom(user_obj) if user_obj else False,
         "can_admin": role in ("admin", "superuser"),
         "is_superuser": role == "superuser",
+        "root": _root_state(),
     }
 
 
