@@ -3144,6 +3144,7 @@ async function rFiles(path){
       <div class="files-sidebar" id="filesSidebar">
         <div id="fsPlaces">${_placesHtml(_places)}</div>
         <div id="fsCloudSection"></div>
+        <div id="fsDrives">${_drivesHtml(_places)}</div>
         <div class="fs-usage" id="fsUsage"></div>
       </div>
       <div class="files-main">
@@ -3308,9 +3309,9 @@ async function setHiddenDrives(list){
   return true;
 }
 async function repaintPlaces(){
-  const box=document.getElementById('fsPlaces');
+  const box=document.getElementById('fsPlaces'),dbox=document.getElementById('fsDrives');
   const pl=await loadPlaces(true);
-  if(box&&pl){box.innerHTML=_placesHtml(pl);wireDriveButtons(box)}
+  if(box&&pl){box.innerHTML=_placesHtml(pl);if(dbox)dbox.innerHTML=_drivesHtml(pl);wireDriveButtons(document.getElementById('filesSidebar'))}
 }
 function wireDriveButtons(root){
   const r=root||document;
@@ -3345,16 +3346,21 @@ function _placesHtml(pl){
   h+=_placeItem(pl.shared.path,'people','Shared');
   if(pl.full){
     h+=_placeItem(pl.users.path,'people','Users');
-    h+=`<div class="fs-title" style="margin-top:10px">Drives</div>`;
-    const dr=pl.drives.items||[],hid=pl.drives.hidden||[],canManage=!!pl.drives.can_manage;
-    h+=dr.length?dr.map(d=>_placeItem(d.path,'drive',d.name,'',_driveHide(d,canManage))).join('')
-      :(hid.length?`<div class="fs-hint">All drives are hidden.</div>`
-        :`<div class="fs-hint">No drives connected.<br><a href="#" data-go="settings">Add a drive or network share</a></div>`);
-    if(hid.length&&canManage)h+=`<div class="fs-hint"><a href="#" data-unhide="all">Show ${hid.length} hidden drive${hid.length===1?'':'s'}</a></div>`;
     h+=`<div class="fs-title" style="margin-top:10px">Advanced</div>`;
     h+=_placeItem(pl.root.path,'server','Server files');
     if(pl.app_data)h+=_placeItem(pl.app_data.path,'server','App data');   // Super User only
   }
+  return h;
+}
+// Connected drives sit at the very bottom of the sidebar, below Advanced and Cloud.
+function _drivesHtml(pl){
+  if(!pl||!pl.full)return '';
+  const dr=pl.drives.items||[],hid=pl.drives.hidden||[],canManage=!!pl.drives.can_manage;
+  let h=`<div class="fs-title" style="margin-top:10px">Drives</div>`;
+  h+=dr.length?dr.map(d=>_placeItem(d.path,'drive',d.name,'',_driveHide(d,canManage))).join('')
+    :(hid.length?`<div class="fs-hint">All drives are hidden.</div>`
+      :`<div class="fs-hint">No drives connected.<br><a href="#" data-go="settings">Add a drive or network share</a></div>`);
+  if(hid.length&&canManage)h+=`<div class="fs-hint"><a href="#" data-unhide="all">Show ${hid.length} hidden drive${hid.length===1?'':'s'}</a></div>`;
   return h;
 }
 async function initFilesSidebar(path){
@@ -3373,8 +3379,8 @@ async function initFilesSidebar(path){
   };
   wirePlaces();
   loadPlaces(true).then(pl=>{
-    const box=document.getElementById('fsPlaces');
-    if(box&&pl){box.innerHTML=_placesHtml(pl);wirePlaces()}
+    const box=document.getElementById('fsPlaces'),dbox=document.getElementById('fsDrives');
+    if(box&&pl){box.innerHTML=_placesHtml(pl);if(dbox)dbox.innerHTML=_drivesHtml(pl);wirePlaces()}
   });
   const cloudEl=document.getElementById('fsCloudSection');
   if(cloudEl)try{

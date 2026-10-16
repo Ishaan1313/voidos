@@ -327,7 +327,7 @@ These are created for you, and the folders have the same names in Files, WebDAV
 and on disk. **Every account has a My Files folder**, Admins and the Super User
 included, with Documents, Downloads, Pictures, Music, Videos and Desktop inside.
 
-The Files sidebar:
+The Files sidebar (Drives is last, below Advanced and Cloud; admins and the Super User can hide a drive from the list for everyone with the eye button, and bring it back with *Show hidden drives*; hiding never unmounts anything):
 
 | Entry | What it opens | Who sees it |
 |---|---|---|
@@ -1112,6 +1112,10 @@ messages.
   counted ("+N similar") instead of sent again.
 - The SMTP password, Discord webhook and Telegram bot token are stored encrypted
   and are never sent back to the browser.
+
+Storage problems are among the events that can be sent: *storage drive not present* and *is back*
+(see [If the storage drive goes missing](#files)), *a USB drive couldn't be mounted* and *a USB drive
+repair failed*. Like the others they are on by default once a channel is on, and each can be switched off.
 
 **Disk space** alerts fire when a drive crosses `VOID_DISK_WARN_PERCENT` (90%) and
 `VOID_DISK_CRITICAL_PERCENT` (95%), and again when it recovers.

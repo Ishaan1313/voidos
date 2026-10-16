@@ -83,6 +83,10 @@ MAJOR_EVENTS = {
     "disk_space_low": "\U0001F4BD Disk space low",
     "app_install_failed": "\U0001F4E6 App install failed",
     "cloud_sync_failed": "\u2601\ufe0f Cloud sync failing",
+    "storage_root_missing": "\U0001F6A8 Storage drive not present",
+    "storage_root_restored": "\u2705 Storage drive is back",
+    "usb_auto_mount_failed": "\U0001F4BE USB drive couldn't be mounted",
+    "usb_repair_failed": "\U0001F4BE USB drive repair failed",
 }
 NOTIFY_SETTINGS_FILE = _void_path("VOID_NOTIFY_SETTINGS_FILE", "notify_settings.json")
 _notify_lock = threading.RLock()
