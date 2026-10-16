@@ -4930,10 +4930,10 @@ function ixBtHtml(){
   if(l==null)return '';
   if(!l.length)return `<div class="sdesc" style="margin-top:10px">No Bluetooth devices found. Put the device in pairing mode, bring it close to the server, and scan again. For an Amazon Echo, say “Alexa, pair” first.</div>`;
   return `<div class="ix-btlist">${l.map(d=>`<div class="ix-dev"><div class="ix-dev-n">${esc(d.name)}
-      <span class="ix-tag ${d.connected?'live':'quiet'}">${d.connected?'Connected':(d.paired?'Paired':'Nearby')}</span>
+      <span class="ix-tag ${d.connected&&d.audio_ready!==false?'live':'quiet'}">${d.connected?(d.audio_ready===false?'Connected, no audio yet':'Connected'):(d.paired?'Paired':'Nearby')}</span>
       ${d.speaker_only?'<span class="ix-tag">Speaker only</span>':''}
       ${d.hint?`<div class="sdesc">${esc(d.hint)}</div>`:''}</div>
-      <div class="ix-dev-a">${d.connected?`<button class="btn btn-g btn-sm" data-act="btdisc" data-mac="${escA(d.mac)}">Disconnect</button>`
+      <div class="ix-dev-a">${d.connected&&d.audio_ready===false?`<button class="btn btn-p btn-sm" data-act="btadd" data-mac="${escA(d.mac)}">Connect audio</button>`:''}${d.connected?`<button class="btn btn-g btn-sm" data-act="btdisc" data-mac="${escA(d.mac)}">Disconnect</button>`
           :`<button class="btn btn-p btn-sm" data-act="btadd" data-mac="${escA(d.mac)}">${d.paired?'Connect':'Add'}</button>`}
         ${d.paired||d.connected?`<button class="btn btn-g btn-sm" data-act="btforget" data-mac="${escA(d.mac)}">Forget</button>`:''}</div></div>`).join('')}</div>`;
 }

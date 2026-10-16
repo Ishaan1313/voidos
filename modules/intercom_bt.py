@@ -395,12 +395,26 @@ def _inbound_allowed(mac: str) -> tuple[bool, str]:
     return True, f"Accepted {label}"
 
 
+def _has_audio(mac: str) -> bool:
+    tag = mac.replace(":", "_").upper()
+    return any(tag in (n.get("name") or "").upper() for n in list_audio_nodes())
+
+
 def _settle_new_device(mac: str):
-    """After pairing: trust it (so it can reconnect by itself) and bring up its audio connection."""
+    """After pairing: trust it (so it can reconnect by itself) and bring up its audio connection.
+    The device having connected is not enough. An Echo that reaches us over the radio still waits for the
+    server to open the audio (A2DP) link, and tells its owner "couldn't connect" when that never happens; a
+    plain `connect` is what asks BlueZ for the audio profiles, so it is sent even though the link is up,
+    and repeated until the audio device shows up (or it is clear it won't)."""
     _run_bt(["trust", mac], timeout=8)
-    time.sleep(3)
-    if not bluetoothctl_info(mac).get("connected"):
-        _run_bt(["connect", mac], timeout=20)
+    for attempt in range(4):
+        time.sleep(2.5)
+        out = _run_bt(["connect", mac], timeout=20)
+        time.sleep(1.5)
+        if _has_audio(mac):
+            _acc_note(f"Connected audio for {mac}")
+            return
+    _acc_note(f"{mac} connected, but its audio didn't come up: " + (out.strip().splitlines()[-1][:100] if out.strip() else "no answer"))
 
 
 def _acceptor_main():
@@ -458,6 +472,10 @@ def _acceptor_main():
                         if mac not in settled:
                             settled.add(mac)
                             threading.Thread(target=_settle_new_device, args=(mac,), daemon=True).start()
+                    elif m and "Connected: yes" in ln and not is_held(m.group(1)) and m.group(1).upper() not in settled:
+                        mac = m.group(1).upper()
+                        settled.add(mac)
+                        threading.Thread(target=_settle_new_device, args=(mac,), daemon=True).start()
                     elif m and "Connected: yes" in ln and is_held(m.group(1)):
                         mac = m.group(1).upper()
                         _run_bt(["disconnect", mac], timeout=8)
@@ -596,6 +614,7 @@ def list_devices() -> list:
         has_input_node = any(f"bluez_input.{mac.replace(':', '_').upper()}" in n["name"]
                               or node_suffix in n["name"].lower() for n in nodes if n["kind"] == "source")
         real_a2dp = info["connected"] and (has_output_node or info["claims_a2dp"])
+        audio_ready = bool(info["connected"] and (has_output_node or has_input_node))
         real_hfp = info["connected"] and has_input_node
         meta = persisted.get(mac, {})
         out.append({
@@ -603,6 +622,7 @@ def list_devices() -> list:
             "name": meta.get("friendly_name") or info["name"],
             "paired": info["paired"],
             "connected": info["connected"],
+            "audio_ready": audio_ready,             # False = linked, but BlueZ/PipeWire haven't brought up the audio profile
             "profiles": {
                 "a2dp": real_a2dp if info["connected"] else info["claims_a2dp"],
                 "hfp": real_hfp if info["connected"] else info["claims_hfp"],

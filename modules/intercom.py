@@ -477,7 +477,12 @@ class _Sink:
         class _T:  # a throwaway "connection"
             alive = True
             user = {"username": "test"}
+            error = None
             def floor_lost(self, *a, **k): pass
+            def push_json(self, obj):                    # write() reports a failing speaker through this
+                if obj.get("level") == "error":
+                    self.error = obj.get("message")
+            def stop_talking(self): pass
         t = _T()
         ok, by = self.acquire(t, force=False)
         if not ok:
@@ -485,9 +490,13 @@ class _Sink:
         try:
             for f in frames:
                 self.write(t, f)
+                if t.error:
+                    break
                 time.sleep(A.FRAME_MS / 1000.0)
         finally:
             self.release(t)
+        if t.error:
+            raise A.AudioError(t.error.replace("Your voice can't be played: ", "").split(". Check the device")[0])
 
 
 _sinks: dict = {}
