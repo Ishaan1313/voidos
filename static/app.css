@@ -1978,3 +1978,9 @@ code,pre,kbd,.path,.toast-ref,.notif-time code,.ip-spoiler-text,.mono{font-famil
 .ix-vol-pct{min-width:38px;text-align:right;font-size:12px;color:var(--td)}
 #rootBanner{position:fixed;top:0;left:0;right:0;z-index:900;padding:9px 16px;text-align:center;font-size:13px;font-weight:600;
   background:var(--rd);color:var(--on-rd);box-shadow:0 4px 18px rgba(0,0,0,.35)}
+/* Remove / eject a drive from the Files sidebar */
+.fs-eject{margin-left:auto;flex:none;border:0;background:transparent;color:var(--td);font-size:15px;line-height:1;cursor:pointer;
+  padding:3px 6px;border-radius:7px;opacity:0;transition:opacity .12s,background .12s,color .12s}
+.fs-item:hover .fs-eject,.fs-eject:focus-visible{opacity:1}
+.fs-eject:hover{background:rgba(var(--rd-rgb),.16);color:var(--rd)}
+@media(hover:none){.fs-eject{opacity:.75}}

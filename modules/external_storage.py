@@ -123,7 +123,8 @@ def list_usb_devices() -> list[dict]:
         for d in devices:
             removable = d.get("rm") in (True, "1", 1) or parent_removable
             is_usb = d.get("tran") == "usb"
-            if d.get("type") == "part" and (removable or is_usb):
+            whole_fs = d.get("type") == "disk" and d.get("fstype") and not d.get("children")
+            if (d.get("type") == "part" or whole_fs) and (removable or is_usb):
                 out_devices.append({
                     "device": "/dev/" + d["name"],
                     "size": d.get("size"),
@@ -248,6 +249,86 @@ def mount_usb(device: str) -> tuple[bool, str]:
 
 def unmount_usb(device: str) -> tuple[bool, str]:
     ok, out = _run(["udisksctl", "unmount", "-b", device, "--no-user-interaction"])
+    return ok, out.strip()
+
+
+# ── mounting straight into a folder we choose ───────────────────────────
+# udisksctl decides the mount point itself (under /media/<user>/) and, for a background service that isn't
+# in a desktop login session, polkit usually refuses it ("not authorized"), which is why automounting could
+# silently do nothing. A plain `sudo mount` into a folder of our own needs only the mount/umount sudo rule
+# the installer already sets up, works for a service, and lets the folder be configured.
+_FORBIDDEN_DIRS = ("/bin", "/boot", "/dev", "/etc", "/lib", "/lib32", "/lib64", "/proc", "/root", "/sbin",
+                   "/sys", "/usr", "/var")
+
+
+def validate_mount_dir(path: str, protect: tuple = ()) -> tuple[bool, str, str]:
+    """(ok, message, normalised path) for a folder drives may be mounted under."""
+    p = (path or "").strip()
+    if not p:
+        return True, "", ""
+    if "\x00" in p or not os.path.isabs(p):
+        return False, "Use a full path that starts with / (for example /mnt/drives).", ""
+    n = os.path.normpath(p)
+    if n == "/" or any(n == f or n.startswith(f + "/") for f in _FORBIDDEN_DIRS):
+        return False, f"{n} is a system folder; pick somewhere like /mnt/drives or /srv/drives.", ""
+    if n == "/run" or (n.startswith("/run/") and not n.startswith("/run/media")):
+        return False, "Pick a folder outside /run (it is cleared at every restart).", ""
+    for q in protect:
+        q = os.path.normpath(str(q))
+        if n == q or n.startswith(q + os.sep):
+            return False, f"Drives can't be mounted inside {q}.", ""
+    try:
+        os.makedirs(n, exist_ok=True)
+    except OSError:
+        return False, (f"Void OS can't create {n}. Create it once yourself and give it to the Void OS user: "
+                       f"sudo mkdir -p {n} && sudo chown $USER {n}"), ""
+    if not os.path.isdir(n) or not os.access(n, os.W_OK | os.X_OK):
+        return False, f"{n} isn't a folder the Void OS user can write to (sudo chown $USER {n}).", ""
+    return True, "", n
+
+
+def _mount_opts(fstype: str | None):
+    """(file system type or None to auto-detect, mount options or None) so the drive's files belong to the
+    Void OS user. ext4, btrfs and xfs keep the permissions stored on the disk."""
+    uid, gid = os.getuid(), os.getgid()
+    ft = (fstype or "").lower()
+    base = "nosuid,nodev"
+    if ft in ("vfat", "fat", "msdos"):
+        return "vfat", f"{base},uid={uid},gid={gid},umask=022,flush,utf8"
+    if ft == "exfat":
+        return "exfat", f"{base},uid={uid},gid={gid},umask=022"
+    if ft in ("ntfs", "ntfs3"):
+        t = "ntfs-3g" if (shutil.which("mount.ntfs-3g") or os.path.exists("/sbin/mount.ntfs-3g")) else "ntfs3"
+        return t, f"{base},uid={uid},gid={gid},umask=022"
+    return (ft or None), base
+
+
+def mount_at(device: str, fstype: str | None, target: str) -> tuple[bool, str]:
+    """Mount `device` at `target` with `sudo mount`. Returns (ok, message)."""
+    try:
+        os.makedirs(target, exist_ok=True)
+    except OSError as e:
+        return False, f"Couldn't create {target}: {e}"
+    if os.path.ismount(target):
+        return False, f"{target} already has something mounted on it."
+    t, opts = _mount_opts(fstype)
+    cmd = ["mount"] + (["-t", t] if t else []) + (["-o", opts] if opts else []) + [device, target]
+    ok, out = _run(_priv(cmd))
+    if not ok:
+        try:
+            os.rmdir(target)
+        except OSError:
+            pass
+    return ok, out.strip()
+
+
+def umount_at(target: str) -> tuple[bool, str]:
+    ok, out = _run(_priv(["umount", target]))
+    if ok:
+        try:
+            os.rmdir(target)
+        except OSError:
+            pass
     return ok, out.strip()
 
 

@@ -19,7 +19,9 @@ import secrets
 import threading
 import time
 import uuid
-from modules.config import DRIVES_REL, EXTERNAL_DIR, EXTERNAL_STORAGE_FILE, FILE_ROOT
+from pathlib import Path
+import os
+from modules.config import APP_DATA_DIR, DRIVES_REL, EXTERNAL_DIR, EXTERNAL_STORAGE_FILE, FILE_ROOT, VOID_ROOT
 from modules.web import _atomic_write_json, app
 from modules.activity import _audit
 from modules.error_log import _current_user
@@ -55,9 +57,12 @@ def _ext_load() -> dict:
             d.setdefault("usb_auto_mount", False)
             d.setdefault("usb_auto_repair", True)   # fix a drive left dirty by a power cut before mounting it
             d.setdefault("known_usb", {})  # device UUID -> {name, last_seen} — friendly names across reconnects
+            d.setdefault("mount_dir", "")   # where USB drives are mounted; empty = <files>/Drives
+            d.setdefault("mounts", {})      # device -> the folder Void OS itself mounted it at
             return d
         except (OSError, ValueError):
-            return {"network": [], "usb_auto_mount": False, "usb_auto_repair": True, "known_usb": {}}
+            return {"network": [], "usb_auto_mount": False, "usb_auto_repair": True, "known_usb": {},
+                    "mount_dir": "", "mounts": {}}
 
 def _ext_save(d: dict) -> None:
     with _ext_lock:
@@ -88,6 +93,121 @@ def api_storage_capabilities():
     })
 
 # ── USB ──────────────────────────────────────────────────────────────────
+# ── USB: where drives go, and how they get there ─────────────────────────
+_usb_errors: dict = {}          # device -> {"msg", "at"}: why the last (auto-)mount of it failed
+
+def _mount_base() -> Path:
+    """The folder drives are mounted under: the one chosen in settings, else <files>/Drives."""
+    custom = (_ext_load().get("mount_dir") or "").strip()
+    return Path(custom) if custom else EXTERNAL_DIR
+
+def _protected_mounts() -> tuple:
+    """Folders a drive may never be mounted inside (Void OS's own files)."""
+    return (str(VOID_ROOT),)
+
+def _holds_files(mountpoint) -> bool:
+    """True when this mount point contains the Files folder, Void OS itself or app data: the drive Void OS runs from."""
+    if not mountpoint:
+        return False
+    mp = os.path.normpath(str(mountpoint))
+    if mp == "/":
+        return True
+    for q in (FILE_ROOT, VOID_ROOT, APP_DATA_DIR):
+        q = os.path.normpath(str(q))
+        if q == mp or q.startswith(mp + os.sep):
+            return True
+    return False
+
+def _unique_slug(label: str, device: str) -> str:
+    slug = _ext_slugify(label or device)
+    taken = {s["slug"] for s in _ext_load()["network"]}
+    t = _mount_base() / slug
+    if slug in taken or external_storage.is_mounted(t) or (t.exists() and any(t.iterdir())):
+        slug = f"{slug}-{device.rsplit('/', 1)[-1].lower()}"
+    return slug
+
+def _browsable_at(slug: str, mountpoint) -> str | None:
+    """Where the drive can be browsed from Files (relative to the Files folder), or None."""
+    try:
+        Path(str(mountpoint)).resolve().relative_to(FILE_ROOT)
+        return str(Path(str(mountpoint)).resolve().relative_to(FILE_ROOT))
+    except (ValueError, OSError):
+        pass
+    t = EXTERNAL_DIR / slug
+    if external_storage.is_mounted(t):
+        return str(t.relative_to(FILE_ROOT))
+    return None
+
+def _attach_usb(device: str, info: dict) -> tuple:
+    """Mount a USB drive into the mount folder and make it browsable in Files. -> (ok, message, mountpoint, browsable)
+
+    Preferred: `sudo mount` straight into <mount folder>/<name> (needs only the mount/umount sudo rule).
+    Fallback: udisksctl (it picks its own folder), then a bind mount into Drives/<name>.
+    A drive some other program already mounted is just linked into Drives."""
+    if IS_WIN:
+        ok, msg = external_storage.mount_usb(device)
+        return ok, msg, None, False
+    base = _mount_base()
+    label = info.get("label") or device
+    slug = _unique_slug(label, device)
+    real = info.get("mountpoint")
+    priv_ok, _ = external_storage.check_mount_privilege()
+    error = ""
+    if not real and priv_ok:
+        target = base / slug
+        ok, out = external_storage.mount_at(device, info.get("fstype"), str(target))
+        if ok:
+            real = str(target)
+            with _ext_lock:
+                ext = _ext_load()
+                ext["mounts"][device] = real
+                _ext_save(ext)
+        else:
+            error = out
+            if external_storage.looks_corrupt(out):
+                return False, out, None, False          # the caller decides about a repair
+    if not real:
+        ok, out = external_storage.mount_usb(device)   # udisksctl fallback
+        if not ok:
+            return False, (error or out), None, False
+        real = None
+        for x in external_storage.list_usb_devices():
+            if x["device"] == device:
+                real = x.get("mountpoint")
+        if not real:
+            real = out if out.startswith("/") else None
+    _usb_errors.pop(device, None)
+    browsable = _browsable_at(slug, real)
+    if not browsable and real:
+        priv2, _ = external_storage.check_bind_privilege()
+        if priv2:
+            target = EXTERNAL_DIR / slug
+            b_ok, b_msg = external_storage.bind_mount(real, str(target))
+            if b_ok:
+                browsable = str(target.relative_to(FILE_ROOT))
+            else:
+                _audit("usb_bind_failed", None, target=device, detail=b_msg[:200])
+    return True, "mounted", real, bool(browsable)
+
+def drive_info(name: str) -> dict:
+    """What the entry `name` under Drives is: {"kind": "network", "id"}, {"kind": "usb", "device"} or {"kind": "folder"}.
+    Used by the Files sidebar to offer Remove."""
+    try:
+        for s in _ext_load()["network"]:
+            if s.get("slug") == name:
+                return {"kind": "network", "id": s["id"], "label": s.get("name") or name}
+        target = EXTERNAL_DIR / name
+        for dev in external_storage.list_usb_devices():
+            mp = dev.get("mountpoint")
+            slug = _ext_slugify(dev.get("label") or dev["device"])
+            names = {slug, f"{slug}-{dev['device'].rsplit('/', 1)[-1].lower()}"}
+            if mp and not _holds_files(mp) and (name in names or os.path.normpath(str(mp)) == os.path.normpath(str(target))):
+                return {"kind": "usb", "device": dev["device"], "label": dev.get("label") or dev["device"]}
+    except Exception:
+        pass
+    return {"kind": "folder"}
+
+
 @app.route("/api/storage/usb")
 @require_admin
 def api_storage_usb_list():
@@ -95,12 +215,16 @@ def api_storage_usb_list():
     ext = _ext_load()
     for d in devices:
         d["bound_at"] = None
-        if d.get("mountpoint"):
-            target = EXTERNAL_DIR / _ext_slugify(d.get("label") or d["device"])
-            if external_storage.is_mounted(target):
-                d["bound_at"] = str(target.relative_to(FILE_ROOT))
+        d["holds_files"] = _holds_files(d.get("mountpoint"))      # the drive Void OS itself runs from
+        if d.get("mountpoint") and not d["holds_files"]:
+            d["bound_at"] = _browsable_at(_ext_slugify(d.get("label") or d["device"]), d["mountpoint"])
+        err = _usb_errors.get(d["device"])
+        d["error"] = err["msg"] if err and not d.get("mountpoint") else None
     return jsonify({"devices": devices, "auto_mount": ext.get("usb_auto_mount", False),
                     "auto_repair": ext.get("usb_auto_repair", True),
+                    "mount_dir": ext.get("mount_dir", ""), "mount_base": str(_mount_base()),
+                    "default_mount_dir": str(EXTERNAL_DIR),
+                    "can_mount": external_storage.check_mount_privilege()[0] if not IS_WIN else None,
                     "repairing": sorted(_repairing)})
 
 @app.route("/api/storage/usb/mount", methods=["POST"])
@@ -111,9 +235,12 @@ def api_storage_usb_mount():
     device = str(d.get("device", ""))
     if not external_storage.valid_device(device):
         return jsonify({"error": "Invalid device"}), 400
-    ok, msg = external_storage.mount_usb(device)
+    info0 = {x["device"]: x for x in external_storage.list_usb_devices()}.get(device) or {}
+    if _holds_files(info0.get("mountpoint")):
+        return jsonify({"error": "This drive holds the Void OS Files folder; it is already in use."}), 400
+    ok, msg, real_mp0, bound0 = _attach_usb(device, info0)
     if not ok:
-        info0 = {x["device"]: x for x in external_storage.list_usb_devices()}.get(device)
+        _usb_errors[device] = {"msg": msg[:300], "at": time.time()}
         if info0 and _ext_load().get("usb_auto_repair", True) and external_storage.looks_corrupt(msg):
             # The drive wasn't closed cleanly (a power cut). Repair it in the background and mount it after,
             # so this request doesn't sit for minutes on a big drive.
@@ -122,23 +249,24 @@ def api_storage_usb_mount():
                                 "message": "This drive wasn't removed cleanly. Void OS is repairing it now and "
                                            "will mount it when it's done; you'll get a notification."}), 202
         return jsonify({"error": msg}), 400
-    bind_ok = None
-    devices = {x["device"]: x for x in external_storage.list_usb_devices()}
-    info = devices.get(device, {})
-    if not info and IS_WIN and msg and msg[1:3] == ":\\":
-        # Windows: a letter-less partition ("disk2part1") just got a drive
-        # letter, so it's now listed under that letter instead.
-        info = devices.get(msg[:2].upper(), {})
-    real_mp = info.get("mountpoint")
-    if real_mp:
-        priv_ok, _ = external_storage.check_bind_privilege()
-        if priv_ok:
-            target = EXTERNAL_DIR / _ext_slugify(info.get("label") or device)
-            bind_ok, bind_msg = external_storage.bind_mount(real_mp, str(target))
-            if not bind_ok:
-                _audit("usb_bind_failed", user, target=device, detail=bind_msg[:200])
-    _audit("usb_mounted", user, target=device, detail=msg)
-    return jsonify({"ok": True, "mountpoint": real_mp, "browsable": bool(bind_ok)})
+    if IS_WIN:                                    # Windows: the drive just got (or had) a letter; link it as before
+        bind_ok = None
+        devices = {x["device"]: x for x in external_storage.list_usb_devices()}
+        info = devices.get(device, {})
+        if not info and msg and msg[1:3] == ":\\":
+            info = devices.get(msg[:2].upper(), {})
+        real_mp = info.get("mountpoint")
+        if real_mp:
+            priv_ok, _ = external_storage.check_bind_privilege()
+            if priv_ok:
+                target = EXTERNAL_DIR / _ext_slugify(info.get("label") or device)
+                bind_ok, bind_msg = external_storage.bind_mount(real_mp, str(target))
+                if not bind_ok:
+                    _audit("usb_bind_failed", user, target=device, detail=bind_msg[:200])
+        _audit("usb_mounted", user, target=device, detail=msg)
+        return jsonify({"ok": True, "mountpoint": real_mp, "browsable": bool(bind_ok)})
+    _audit("usb_mounted", user, target=device, detail=str(real_mp0))
+    return jsonify({"ok": True, "mountpoint": real_mp0, "browsable": bool(bound0)})
 
 @app.route("/api/storage/usb/unmount", methods=["POST"])
 @require_admin
@@ -150,17 +278,31 @@ def api_storage_usb_unmount():
         return jsonify({"error": "Invalid device"}), 400
     devices = {x["device"]: x for x in external_storage.list_usb_devices()}
     info = devices.get(device, {})
-    if info.get("mountpoint"):
+    mp = info.get("mountpoint")
+    if _holds_files(mp):
+        return jsonify({"error": "This drive holds the Void OS Files folder, so it can't be unmounted from here."}), 400
+    if mp:
         target = EXTERNAL_DIR / _ext_slugify(info.get("label") or device)
-        if external_storage.is_mounted(target):
+        if str(target) != str(mp) and external_storage.is_mounted(target):     # the copy of it shown in Files
             external_storage.unbind_mount(str(target))
             try:
                 target.rmdir()
             except OSError:
                 pass
-    ok, msg = external_storage.unmount_usb(device)
+    ext = _ext_load()
+    ours = ext.get("mounts", {}).get(device)
+    if not IS_WIN and mp and (ours == mp or os.path.normpath(mp).startswith(str(_mount_base()) + os.sep)):
+        ok, msg = external_storage.umount_at(mp)               # we mounted it ourselves: undo it the same way
+        if not ok:
+            ok, msg = external_storage.unmount_usb(device)
+    else:
+        ok, msg = external_storage.unmount_usb(device)
     if not ok:
         return jsonify({"error": msg}), 400
+    with _ext_lock:
+        ext = _ext_load()
+        if ext.get("mounts", {}).pop(device, None) is not None:
+            _ext_save(ext)
     _audit("usb_unmounted", user, target=device)
     return jsonify({"ok": True})
 
@@ -169,18 +311,32 @@ def api_storage_usb_unmount():
 def api_storage_usb_automount():
     user = _current_user()
     d = request.get_json(silent=True) or {}
+    new_dir = None
+    if "mount_dir" in d:
+        if IS_WIN:
+            return jsonify({"error": "Windows gives drives their own letters, so there is no mount folder to choose."}), 400
+        ok_dir, why, norm = external_storage.validate_mount_dir(str(d.get("mount_dir") or ""), _protected_mounts())
+        if not ok_dir:
+            return jsonify({"error": why}), 400
+        new_dir = norm
     with _ext_lock:
         ext = _ext_load()
         if "enabled" in d:
             ext["usb_auto_mount"] = bool(d.get("enabled"))
         if "auto_repair" in d:
             ext["usb_auto_repair"] = bool(d.get("auto_repair"))
+        if new_dir is not None:
+            ext["mount_dir"] = "" if new_dir == str(EXTERNAL_DIR) else new_dir
         _ext_save(ext)
+    if new_dir is not None:
+        _usb_errors.clear()
+        _audit("usb_mount_dir_changed", user, detail=ext["mount_dir"] or "(default)")
     if "enabled" in d:
         _audit("usb_automount_changed", user, detail=str(ext["usb_auto_mount"]))
     if "auto_repair" in d:
         _audit("usb_autorepair_changed", user, detail=str(ext["usb_auto_repair"]))
-    return jsonify({"ok": True, "auto_mount": ext["usb_auto_mount"], "auto_repair": ext["usb_auto_repair"]})
+    return jsonify({"ok": True, "auto_mount": ext["usb_auto_mount"], "auto_repair": ext["usb_auto_repair"],
+                    "mount_dir": ext.get("mount_dir", ""), "mount_base": str(_mount_base())})
 
 # Drives being repaired right now (device paths), and when a drive was last tried by the watcher, so a
 # drive that can't be fixed isn't hammered every five seconds.
@@ -202,15 +358,11 @@ def _start_repair(device: str, info: dict, actor) -> bool:
             if not fixed:
                 _audit("usb_repair_failed", actor, target=device, detail=summary[:300])
                 return
-            ok, real_mp = external_storage.mount_usb(device)
+            ok, why, real_mp, _b = _attach_usb(device, info)
             if not ok:
                 _audit("usb_repair_failed", actor, target=device,
-                       detail=f"Repaired, but it still won't mount: {str(real_mp)[:200]}")
+                       detail=f"Repaired, but it still won't mount: {str(why)[:200]}")
                 return
-            priv_ok, _ = external_storage.check_bind_privilege()
-            if priv_ok:
-                target = EXTERNAL_DIR / _ext_slugify(info.get("label") or device)
-                external_storage.bind_mount(real_mp, str(target))
             _audit("usb_repaired", actor, target=device, detail=f"{summary} Mounted at {real_mp}")
         except Exception as e:
             _audit("usb_repair_failed", actor, target=device, detail=f"Unexpected error: {e}"[:300])
@@ -229,6 +381,7 @@ def _usb_watcher_loop():
     enough for a home-server USB drive, not a hot-swap-heavy workload."""
     seen = set()
     tried: dict = {}      # device -> time of the last failed attempt; cleared when the drive is unplugged
+    attempts: dict = {}   # device -> how many times in a row it has failed
     from modules import rootguard
     while True:
         try:
@@ -239,24 +392,35 @@ def _usb_watcher_loop():
             present = {d["device"] for d in external_storage.list_usb_devices()}
             for gone in [k for k in tried if k not in present]:
                 tried.pop(gone, None)
+                attempts.pop(gone, None)
+                _usb_errors.pop(gone, None)
             if ext.get("usb_auto_mount"):
                 for dev in external_storage.list_usb_devices():
-                    if dev["device"] in seen or dev.get("mountpoint") or dev["device"] in _repairing:
+                    device = dev["device"]
+                    if device in seen or device in _repairing or _holds_files(dev.get("mountpoint")):
+                        continue            # (never the drive Void OS itself runs from)
+                    if dev.get("mountpoint") and _browsable_at(_ext_slugify(dev.get("label") or device), dev["mountpoint"]):
+                        continue            # already mounted and visible in Files
+                    wait = (30, 120, 600)[min(attempts.get(device, 0), 2)]     # 30 s, 2 min, then every 10 min
+                    if time.time() - tried.get(device, 0) < wait:
                         continue
-                    if time.time() - tried.get(dev["device"], 0) < 600:
-                        continue       # failed recently: try again in ten minutes, or when it is re-plugged
-                    ok, real_mp = external_storage.mount_usb(dev["device"])
+                    ok, msg, real_mp, _b = _attach_usb(device, dev)
                     if not ok:
-                        tried[dev["device"]] = time.time()
-                        if ext.get("usb_auto_repair", True) and external_storage.looks_corrupt(real_mp):
-                            _start_repair(dev["device"], dev, None)
+                        tried[device] = time.time()
+                        attempts[device] = attempts.get(device, 0) + 1
+                        _usb_errors[device] = {"msg": str(msg)[:300], "at": time.time()}
+                        if attempts[device] == 1:        # say so once per insertion, in plain words
+                            from modules.activity import _inapp_notify_admins
+                            _audit("usb_auto_mount_failed", None, target=device, detail=str(msg)[:200])
+                            _inapp_notify_admins("A USB drive couldn't be mounted",
+                                                 f"{dev.get('label') or device}: {str(msg)[:240]}", level="error",
+                                                 kind="system", link="access")
+                        if ext.get("usb_auto_repair", True) and external_storage.looks_corrupt(msg):
+                            _start_repair(device, dev, None)
                         continue
-                    if ok:
-                        priv_ok, _ = external_storage.check_bind_privilege()
-                        if priv_ok:
-                            target = EXTERNAL_DIR / _ext_slugify(dev.get("label") or dev["device"])
-                            external_storage.bind_mount(real_mp, str(target))
-                        _audit("usb_auto_mounted", None, target=dev["device"], detail=real_mp)
+                    attempts.pop(device, None)
+                    tried.pop(device, None)
+                    _audit("usb_auto_mounted", None, target=device, detail=str(real_mp))
             seen = {d["device"] for d in external_storage.list_usb_devices() if d.get("mountpoint")}
         except Exception as e:
             app.logger.warning(f"USB watcher error: {e}")

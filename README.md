@@ -696,8 +696,29 @@ config path that's deleted when the run ends.
 and shares into Files under `Drives/<name>`, where they work like any other
 folder (upload, rename, share links, WebDAV).
 
-**USB drives** are detected automatically and mounted with `udisksctl` (no root
-needed). *Auto-mount on insert* mounts new drives as they're plugged in.
+**USB drives** are detected automatically. When Void OS can use `sudo mount`
+(the installer's mount/umount rule), it mounts each drive straight into its own
+folder with the drive's files owned by the Void OS user (FAT, exFAT and NTFS; ext4,
+Btrfs and XFS keep the permissions stored on the disk). Without it, it falls back
+to `udisksctl`, which a background service is often not allowed to use. *Auto-mount
+on insert* mounts new drives as they're plugged in (partitions, and whole-disk
+file systems too), tries a drive that fails again after 30 seconds, then 2 minutes,
+then every 10 minutes, tells the admins once with the reason, and shows that reason
+under the drive in Access Control. A drive another program already mounted is just
+linked into Files. The drive that holds the Files folder is never attached to itself
+or unmounted from here.
+
+**Mount folder.** *Access Control → External storage → Mount folder* chooses where
+USB drives are mounted: a folder such as `/mnt/drives`, or empty for the default
+`Drives` folder in Files. Each drive gets its own subfolder (named after its label);
+a drive mounted outside the Files folder is also linked into `Drives` so it still
+shows in Files. The folder must exist and be writable by the Void OS user
+(`sudo mkdir -p /mnt/drives && sudo chown $USER /mnt/drives`); system folders and the
+Void OS folder are refused. Drives that are already mounted stay where they are.
+
+**Removing a drive.** In the Files sidebar, each USB drive and network share has a
+remove button (⏏) when you hover it: a USB drive is unmounted (safe to unplug),
+a network share is disconnected and forgotten. It asks first.
 
 **Repair after a power cut.** If the server loses power and a USB drive is left
 "dirty" (it won't mount: *structure needs cleaning*, *volume is dirty*, *unclean file

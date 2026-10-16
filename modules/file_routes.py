@@ -70,7 +70,13 @@ def api_files_places():
         try:
             for d in sorted(EXTERNAL_DIR.iterdir(), key=lambda x: x.name.lower()):
                 if d.is_dir() and not _is_internal_name(d.name):
-                    drives.append({"name": d.name, "path": f"{DRIVES_REL}/{d.name}"})
+                    item = {"name": d.name, "path": f"{DRIVES_REL}/{d.name}"}
+                    try:
+                        from modules import storage_routes
+                        item.update(storage_routes.drive_info(d.name))
+                    except Exception:
+                        pass
+                    drives.append(item)
         except OSError:
             pass
         out["drives"] = {"name": "Drives", "path": DRIVES_REL, "items": drives}

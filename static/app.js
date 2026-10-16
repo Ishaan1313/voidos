@@ -3292,8 +3292,42 @@ const _FS_ICO={
   server:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><circle cx="7" cy="7" r=".8"/><circle cx="7" cy="17" r=".8"/></svg>',
   trash:'<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>',
 };
-function _placeItem(path,icon,label,cls){
-  return `<div class="fs-item ${cls||''}" data-fs-path="${escA(path)}">${_FS_ICO[icon]}<span class="fs-lbl">${esc(label)}</span></div>`;
+function _placeItem(path,icon,label,cls,extra){
+  return `<div class="fs-item ${cls||''}" data-fs-path="${escA(path)}">${_FS_ICO[icon]}<span class="fs-lbl">${esc(label)}</span>${extra||''}</div>`;
+}
+// A drive in the sidebar can be taken out again: USB drives are unmounted (safe to unplug), network shares are
+// disconnected and forgotten. Plain folders under Drives have no button.
+function _driveEject(d){
+  if(d.kind!=='usb'&&d.kind!=='network')return '';
+  return `<button class="fs-eject" type="button" data-kind="${escA(d.kind)}" data-ref="${escA(d.kind==='usb'?d.device:d.id)}" data-label="${escA(d.label||d.name)}" data-path="${escA(d.path)}"
+    title="${d.kind==='usb'?'Remove this drive (safe to unplug afterwards)':'Disconnect this network share'}" aria-label="Remove ${escA(d.label||d.name)}">\u23CF</button>`;
+}
+async function ejectDrive(b){
+  const kind=b.dataset.kind,ref=b.dataset.ref,label=b.dataset.label,path=b.dataset.path;
+  const msg=kind==='usb'?`Remove \u201c${esc(label)}\u201d from Files? It is unmounted, so it is safe to unplug afterwards.`
+                        :`Disconnect \u201c${esc(label)}\u201d? The share is unmounted and Void OS forgets it (add it again later if you need it).`;
+  confirmDlg(msg,async()=>{
+    try{
+      const r=kind==='usb'
+        ?await api('/api/storage/usb/unmount',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:ref})})
+        :await api('/api/storage/network/'+encodeURIComponent(ref),{method:'DELETE'});
+      const d=await r.json();
+      if(!r.ok||d.error){errToast(d,'Couldn\u2019t remove it');return}
+      toast(kind==='usb'?'Removed. You can unplug it now.':'Disconnected','success');
+      if(App.curV==='files'&&(App.curP===path||(App.curP||'').startsWith(path+'/')))rFiles('');
+      const box=document.getElementById('fsPlaces');
+      const pl=await loadPlaces(true);
+      if(box&&pl){box.innerHTML=_placesHtml(pl);wireDriveButtons(box)}
+    }catch(e){toast('Couldn\u2019t remove it: '+e.message,'error')}
+  },'Remove',b);
+}
+function wireDriveButtons(root){
+  (root||document).querySelectorAll('.fs-eject').forEach(b=>{
+    b.onclick=e=>{e.stopPropagation();e.preventDefault();ejectDrive(b)};
+  });
+  (root||document).querySelectorAll('.fs-item[data-fs-path]').forEach(el=>{
+    if(!el.onclick)el.onclick=()=>rFiles(el.dataset.fsPath);
+  });
 }
 // The sidebar, in the order a person looks for things: yours, shared, then the admin views.
 function _placesHtml(pl){
@@ -3307,7 +3341,7 @@ function _placesHtml(pl){
     h+=_placeItem(pl.users.path,'people','Users');
     h+=`<div class="fs-title" style="margin-top:10px">Drives</div>`;
     const dr=pl.drives.items||[];
-    h+=dr.length?dr.map(d=>_placeItem(d.path,'drive',d.name)).join('')
+    h+=dr.length?dr.map(d=>_placeItem(d.path,'drive',d.name,'',_driveEject(d))).join('')
       :`<div class="fs-hint">No drives connected.<br><a href="#" data-go="settings">Add a drive or network share</a></div>`;
     h+=`<div class="fs-title" style="margin-top:10px">Advanced</div>`;
     h+=_placeItem(pl.root.path,'server','Server files');
@@ -3326,6 +3360,7 @@ async function initFilesSidebar(path){
       if(path===fp||(fp&&path.startsWith(fp+'/'))){if(!best||fp.length>best.dataset.fsPath.length)best=el}
     });
     items.forEach(el=>{el.classList.toggle('active',el===best);el.onclick=()=>rFiles(el.dataset.fsPath)});
+    wireDriveButtons(sb);
     sb.querySelectorAll('[data-go]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();go(a.dataset.go)}));
   };
   wirePlaces();
@@ -6043,6 +6078,13 @@ async function rAccess(){
           ${ghSwitch('usbAutoRepair',true)}<label for="usbAutoRepair" style="cursor:pointer" title="If the server lost power and a drive was left dirty, check and fix it before mounting">Repair after a power cut</label>
         </div>
       </div>
+      <div id="usbMountRow" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <label class="fgl" for="usbMountDir" style="margin:0;white-space:nowrap">Mount folder</label>
+        <input class="fgi" id="usbMountDir" placeholder="default" spellcheck="false" autocomplete="off" style="flex:1;min-width:220px;font-size:12px"/>
+        <button class="btn btn-g btn-sm" id="usbMountDirSave" type="button">Save</button>
+        <button class="btn btn-g btn-sm" id="usbMountDirReset" type="button" title="Mount drives under the Drives folder in Files again">Use default</button>
+      </div>
+      <div class="sdesc" id="usbMountNote" style="margin-bottom:12px"></div>
       <div id="usbList"><div class="loading"><div class="loader"></div></div></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 8px">
         <span style="font-size:12.5px;font-weight:600">Network Shares</span>
@@ -6100,6 +6142,14 @@ async function rAccess(){
     if(r.ok)toast(checked?'USB auto-mount enabled':'USB auto-mount disabled','success');
     else{errToast(r,'Couldn\u2019t change USB auto-mount');e.target.checked=!checked}
   });
+  const saveMountDir=async(value)=>{
+    const r=await(await api('/api/storage/usb/auto-mount',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({mount_dir:value})})).json();
+    if(r.ok){toast(value?'Drives will be mounted in '+r.mount_base:'Drives will be mounted in the Drives folder again','success');loadUsbList()}
+    else errToast(r,'Couldn\u2019t use that folder');
+  };
+  document.getElementById('usbMountDirSave')?.addEventListener('click',()=>saveMountDir((document.getElementById('usbMountDir').value||'').trim()));
+  document.getElementById('usbMountDirReset')?.addEventListener('click',()=>{document.getElementById('usbMountDir').value='';saveMountDir('')});
+  document.getElementById('usbMountDir')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('usbMountDirSave').click()});
   document.getElementById('usbAutoRepair')?.addEventListener('change',async e=>{
     const checked=e.target.checked;
     const r=await(await api('/api/storage/usb/auto-mount',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({auto_repair:checked})})).json();
@@ -6118,7 +6168,7 @@ async function loadStorageCapabilities(){
       <code>${FS_DRIVES}/</code>. Windows already gives USB drives a letter \u2014 <b>Link to Files</b> makes one browsable here
       (an NTFS junction, no admin needed) and <b>Eject</b> safely removes it. Network shares are linked with a directory
       symlink, which needs Developer Mode or running Void OS as Administrator; NFS also needs Windows' <i>Client for NFS</i> feature.`;
-    if(_storPlat==='windows')loadUsbList();
+    if(_storPlat==='windows'){loadUsbList();const mr=document.getElementById('usbMountRow'),mn=document.getElementById('usbMountNote');if(mr)mr.style.display='none';if(mn)mn.style.display='none'}
     const line=(label,cap)=>`<span style="color:${cap.ok?'var(--gr)':'var(--yw)'}">${cap.ok?'\u2713':'\u26a0'} ${label}: ${esc(cap.message)}</span>`;
     el.innerHTML=[line('USB',c.usb),line('SMB',c.smb),line('NFS',c.nfs)].join('<br>');
   }catch(e){el.textContent='Failed to check capabilities'}
@@ -6128,6 +6178,11 @@ async function loadUsbList(){
   try{
     const d=await apiData('/api/storage/usb');
     document.getElementById('usbAutoMount').checked=!!d.auto_mount;
+    const mdi=document.getElementById('usbMountDir');
+    if(mdi){if(document.activeElement!==mdi)mdi.value=d.mount_dir||'';mdi.placeholder='default ('+(d.default_mount_dir||'')+')'}
+    const mnote=document.getElementById('usbMountNote');
+    if(mnote)mnote.innerHTML=`Drives are mounted in <code>${esc(d.mount_base||'')}</code>${d.mount_dir?'':' (the default)'} and appear in Files under <b>${FS_DRIVES}</b>.`
+      +(d.can_mount===false?` <span style="color:var(--yw)">Automatic mounting needs passwordless sudo for <code>mount</code> and <code>umount</code> (the installer sets it up; re-run it if this server was installed before), otherwise Void OS has to fall back to the desktop's own mounting, which usually refuses a background service.</span>`:'');
     const rp=document.getElementById('usbAutoRepair');if(rp)rp.checked=d.auto_repair!==false;
     if((d.repairing||[]).length&&!window._usbRepairPoll)window._usbRepairPoll=setTimeout(()=>{window._usbRepairPoll=null;loadUsbList()},5000);
     if(!d.devices.length){el.innerHTML='<div class="sdesc">No USB storage devices detected</div>';return}
@@ -6136,10 +6191,13 @@ async function loadUsbList(){
         <div class="user-avatar avatar-guest">\u{1F4BE}</div>
         <div class="user-info"><div class="user-name">${esc(dev.label||dev.device)}</div>
           <div class="user-meta">${esc(dev.device)} \u00b7 ${fmtB(dev.size||0)} \u00b7 ${dev.mountpoint?('Mounted at '+esc(dev.mountpoint)+(dev.bound_at?' \u2192 browsable at '+esc(dev.bound_at):(_storPlat==='windows'?' (not linked into Files yet)':' (not browsable in Files \u2014 needs mount privilege)'))):'Not mounted'}</div></div>
+        ${dev.error?`<div class="user-meta" style="color:var(--rd);white-space:normal;flex-basis:100%">Couldn\u2019t mount: ${esc(dev.error)}</div>`:''}
         <div class="user-actions">
-          ${dev.mountpoint&&!dev.bound_at
+          ${dev.holds_files?`<span class="ix-tag quiet" title="Void OS keeps its Files folder on this drive">In use by Void OS</span>`:''}
+          ${!dev.holds_files&&dev.mountpoint&&!dev.bound_at
             ?`<button class="btn btn-g btn-sm" onclick="mountUsb(${jsA(dev.device)})" title="Make this drive browsable in Files under ${FS_DRIVES}/">Link to Files</button>`:''}
-          ${dev.mountpoint
+          ${dev.holds_files?''
+            :dev.mountpoint
             ?`<button class="btn btn-d btn-sm" onclick="unmountUsb(${jsA(dev.device)})">${_storPlat==='windows'?'Eject':'Unmount'}</button>`
             :((d.repairing||[]).includes(dev.device)
               ?`<button class="btn btn-g btn-sm" disabled title="Checking and repairing the file system">Repairing…</button>`
