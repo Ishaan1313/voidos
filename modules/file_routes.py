@@ -23,7 +23,7 @@ from modules.config import (
     APP_DATA_DIR, DRIVES_REL, EXTERNAL_DIR, FILE_ROOT, GUEST_QUOTA_MB, SHARED_REL, UPLOAD_SESSION_TTL_S, USERS_REL,
 )
 from modules.limits import guarded_send
-from modules.error_log import _api_error, _current_user, _err, _has_full_file_access, _log_exception
+from modules.error_log import _api_error, _current_user, _err, _has_full_file_access, _is_admin_level, _log_exception
 from modules.activity import _audit
 from modules.file_access import (
     _dir_size, _guest_breadcrumb, _guest_virtual_root, _in_personal_folder, _is_void_internal, _is_within,
@@ -66,20 +66,21 @@ def api_files_places():
                 out["app_data"] = {"name": "App data", "path": APP_DATA_DIR.relative_to(FILE_ROOT).as_posix()}                     if APP_DATA_DIR.is_dir() else None
             except ValueError:
                 out["app_data"] = None
-        drives = []
+        drives, hidden_now = [], []
+        try:
+            from modules import storage_routes
+            hidden = set(storage_routes._ext_load().get("hidden_drives", []))
+        except Exception:
+            hidden = set()
         try:
             for d in sorted(EXTERNAL_DIR.iterdir(), key=lambda x: x.name.lower()):
                 if d.is_dir() and not _is_internal_name(d.name):
-                    item = {"name": d.name, "path": f"{DRIVES_REL}/{d.name}"}
-                    try:
-                        from modules import storage_routes
-                        item.update(storage_routes.drive_info(d.name))
-                    except Exception:
-                        pass
-                    drives.append(item)
+                    (hidden_now if d.name in hidden else drives).append({"name": d.name, "path": f"{DRIVES_REL}/{d.name}"})
         except OSError:
             pass
-        out["drives"] = {"name": "Drives", "path": DRIVES_REL, "items": drives}
+        can_manage = _is_admin_level(user)           # admins and the Super User decide what the list shows
+        out["drives"] = {"name": "Drives", "path": DRIVES_REL, "items": drives, "can_manage": can_manage,
+                         "hidden": [x["name"] for x in hidden_now] if can_manage else []}
     return jsonify(out)
 
 @app.route("/api/files")

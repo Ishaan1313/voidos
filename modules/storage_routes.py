@@ -57,6 +57,7 @@ def _ext_load() -> dict:
             d.setdefault("usb_auto_mount", False)
             d.setdefault("usb_auto_repair", True)   # fix a drive left dirty by a power cut before mounting it
             d.setdefault("known_usb", {})  # device UUID -> {name, last_seen} — friendly names across reconnects
+            d.setdefault("hidden_drives", [])   # names under Drives left out of the Files sidebar, for everyone
             d.setdefault("mount_dir", "")   # where USB drives are mounted; empty = <files>/Drives
             d.setdefault("mounts", {})      # device -> the folder Void OS itself mounted it at
             return d
@@ -93,6 +94,27 @@ def api_storage_capabilities():
     })
 
 # ── USB ──────────────────────────────────────────────────────────────────
+@app.route("/api/storage/drives/visibility", methods=["PATCH"])
+@require_admin
+def api_storage_drives_visibility():
+    """Which drives the Files sidebar lists, for everyone. Hiding only tidies the list: the drive stays mounted and
+    its folder is still reachable (Server files, a typed path, WebDAV)."""
+    user = _current_user()
+    d = request.get_json(silent=True) or {}
+    hidden = d.get("hidden")
+    if not isinstance(hidden, list):
+        return jsonify({"error": "hidden must be a list of drive names"}), 400
+    clean = list(dict.fromkeys(str(x)[:120] for x in hidden if isinstance(x, str) and x and "/" not in x and "\\" not in x))[:200]
+    with _ext_lock:
+        ext = _ext_load()
+        old = set(ext.get("hidden_drives", []))
+        ext["hidden_drives"] = clean
+        _ext_save(ext)                       # also tells every open page to refresh its sidebar
+    changed = sorted(old.symmetric_difference(clean))
+    if changed:
+        _audit("drives_visibility_changed", user, detail=", ".join(changed)[:200])
+    return jsonify({"ok": True, "hidden": clean})
+
 # ── USB: where drives go, and how they get there ─────────────────────────
 _usb_errors: dict = {}          # device -> {"msg", "at"}: why the last (auto-)mount of it failed
 
@@ -188,25 +210,6 @@ def _attach_usb(device: str, info: dict) -> tuple:
             else:
                 _audit("usb_bind_failed", None, target=device, detail=b_msg[:200])
     return True, "mounted", real, bool(browsable)
-
-def drive_info(name: str) -> dict:
-    """What the entry `name` under Drives is: {"kind": "network", "id"}, {"kind": "usb", "device"} or {"kind": "folder"}.
-    Used by the Files sidebar to offer Remove."""
-    try:
-        for s in _ext_load()["network"]:
-            if s.get("slug") == name:
-                return {"kind": "network", "id": s["id"], "label": s.get("name") or name}
-        target = EXTERNAL_DIR / name
-        for dev in external_storage.list_usb_devices():
-            mp = dev.get("mountpoint")
-            slug = _ext_slugify(dev.get("label") or dev["device"])
-            names = {slug, f"{slug}-{dev['device'].rsplit('/', 1)[-1].lower()}"}
-            if mp and not _holds_files(mp) and (name in names or os.path.normpath(str(mp)) == os.path.normpath(str(target))):
-                return {"kind": "usb", "device": dev["device"], "label": dev.get("label") or dev["device"]}
-    except Exception:
-        pass
-    return {"kind": "folder"}
-
 
 @app.route("/api/storage/usb")
 @require_admin

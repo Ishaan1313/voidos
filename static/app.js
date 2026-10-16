@@ -3295,37 +3295,43 @@ const _FS_ICO={
 function _placeItem(path,icon,label,cls,extra){
   return `<div class="fs-item ${cls||''}" data-fs-path="${escA(path)}">${_FS_ICO[icon]}<span class="fs-lbl">${esc(label)}</span>${extra||''}</div>`;
 }
-// A drive in the sidebar can be taken out again: USB drives are unmounted (safe to unplug), network shares are
-// disconnected and forgotten. Plain folders under Drives have no button.
-function _driveEject(d){
-  if(d.kind!=='usb'&&d.kind!=='network')return '';
-  return `<button class="fs-eject" type="button" data-kind="${escA(d.kind)}" data-ref="${escA(d.kind==='usb'?d.device:d.id)}" data-label="${escA(d.label||d.name)}" data-path="${escA(d.path)}"
-    title="${d.kind==='usb'?'Remove this drive (safe to unplug afterwards)':'Disconnect this network share'}" aria-label="Remove ${escA(d.label||d.name)}">\u23CF</button>`;
+// Admins and the Super User can leave a drive out of the sidebar for everyone (it stays mounted; this only tidies the list).
+function _driveHide(d,canManage){
+  if(!canManage)return '';
+  return `<button class="fs-hide" type="button" data-name="${escA(d.name)}" title="Hide from the sidebar for everyone (it stays mounted)" aria-label="Hide ${escA(d.name)} from the sidebar">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.9 17.9A10.6 10.6 0 0112 20C5 20 1 12 1 12a18.5 18.5 0 015.1-5.9M9.9 4.2A9.1 9.1 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.2 3.2M14.1 14.1a3 3 0 11-4.2-4.2"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>`;
 }
-async function ejectDrive(b){
-  const kind=b.dataset.kind,ref=b.dataset.ref,label=b.dataset.label,path=b.dataset.path;
-  const msg=kind==='usb'?`Remove \u201c${esc(label)}\u201d from Files? It is unmounted, so it is safe to unplug afterwards.`
-                        :`Disconnect \u201c${esc(label)}\u201d? The share is unmounted and Void OS forgets it (add it again later if you need it).`;
-  confirmDlg(msg,async()=>{
-    try{
-      const r=kind==='usb'
-        ?await api('/api/storage/usb/unmount',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:ref})})
-        :await api('/api/storage/network/'+encodeURIComponent(ref),{method:'DELETE'});
-      const d=await r.json();
-      if(!r.ok||d.error){errToast(d,'Couldn\u2019t remove it');return}
-      toast(kind==='usb'?'Removed. You can unplug it now.':'Disconnected','success');
-      if(App.curV==='files'&&(App.curP===path||(App.curP||'').startsWith(path+'/')))rFiles('');
-      const box=document.getElementById('fsPlaces');
-      const pl=await loadPlaces(true);
-      if(box&&pl){box.innerHTML=_placesHtml(pl);wireDriveButtons(box)}
-    }catch(e){toast('Couldn\u2019t remove it: '+e.message,'error')}
-  },'Remove',b);
+async function setHiddenDrives(list){
+  const r=await api('/api/storage/drives/visibility',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({hidden:list})});
+  const d=await r.json();
+  if(!r.ok||d.error){errToast(d,'Couldn\u2019t save that');return false}
+  return true;
+}
+async function repaintPlaces(){
+  const box=document.getElementById('fsPlaces');
+  const pl=await loadPlaces(true);
+  if(box&&pl){box.innerHTML=_placesHtml(pl);wireDriveButtons(box)}
 }
 function wireDriveButtons(root){
-  (root||document).querySelectorAll('.fs-eject').forEach(b=>{
-    b.onclick=e=>{e.stopPropagation();e.preventDefault();ejectDrive(b)};
+  const r=root||document;
+  r.querySelectorAll('.fs-hide').forEach(b=>{
+    b.onclick=async e=>{
+      e.stopPropagation();e.preventDefault();
+      const pl=await loadPlaces();
+      const cur=((pl&&pl.drives&&pl.drives.hidden)||[]);
+      if(await setHiddenDrives([...cur,b.dataset.name])){toast('Hidden from the sidebar for everyone. The drive is still mounted.','success');await repaintPlaces()}
+    };
   });
-  (root||document).querySelectorAll('.fs-item[data-fs-path]').forEach(el=>{
+  r.querySelectorAll('[data-unhide]').forEach(a=>{
+    a.onclick=async e=>{
+      e.preventDefault();
+      const pl=await loadPlaces();
+      const names=((pl&&pl.drives&&pl.drives.hidden)||[]);
+      const which=a.dataset.unhide;
+      if(await setHiddenDrives(which==='all'||!which?[]:names.filter(n=>n!==which)))await repaintPlaces();
+    };
+  });
+  r.querySelectorAll('.fs-item[data-fs-path]').forEach(el=>{
     if(!el.onclick)el.onclick=()=>rFiles(el.dataset.fsPath);
   });
 }
@@ -3340,9 +3346,11 @@ function _placesHtml(pl){
   if(pl.full){
     h+=_placeItem(pl.users.path,'people','Users');
     h+=`<div class="fs-title" style="margin-top:10px">Drives</div>`;
-    const dr=pl.drives.items||[];
-    h+=dr.length?dr.map(d=>_placeItem(d.path,'drive',d.name,'',_driveEject(d))).join('')
-      :`<div class="fs-hint">No drives connected.<br><a href="#" data-go="settings">Add a drive or network share</a></div>`;
+    const dr=pl.drives.items||[],hid=pl.drives.hidden||[],canManage=!!pl.drives.can_manage;
+    h+=dr.length?dr.map(d=>_placeItem(d.path,'drive',d.name,'',_driveHide(d,canManage))).join('')
+      :(hid.length?`<div class="fs-hint">All drives are hidden.</div>`
+        :`<div class="fs-hint">No drives connected.<br><a href="#" data-go="settings">Add a drive or network share</a></div>`);
+    if(hid.length&&canManage)h+=`<div class="fs-hint"><a href="#" data-unhide="all">Show ${hid.length} hidden drive${hid.length===1?'':'s'}</a></div>`;
     h+=`<div class="fs-title" style="margin-top:10px">Advanced</div>`;
     h+=_placeItem(pl.root.path,'server','Server files');
     if(pl.app_data)h+=_placeItem(pl.app_data.path,'server','App data');   // Super User only
