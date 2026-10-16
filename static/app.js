@@ -4832,7 +4832,7 @@ function ixRoomHtml(r){
   if(mine)chips.push('<span class="ix-tag live">You are talking</span>');
   else if(r.talking_by)chips.push(`<span class="ix-tag live">${esc(r.talking_by)} is talking</span>`);
   if(r.has_output&&r.output_ok===false)chips.push('<span class="ix-tag bad">Speaker offline</span>');
-  if(r.has_input&&r.input_ok===false)chips.push('<span class="ix-tag bad">Microphone offline</span>');
+  if(r.has_input&&r.input_ok===false)chips.push(`<span class="ix-tag bad">${r.builtin?'No microphone on the server':'Microphone offline'}</span>`);
   if(!r.has_output)chips.push('<span class="ix-tag">Listen only</span>');
   else if(!r.has_input)chips.push('<span class="ix-tag">Talk only</span>');
   if(r.listeners)chips.push(`<span class="ix-tag">${r.listeners} listening</span>`);
