@@ -15,6 +15,7 @@ so users.json alone — or a backup of it — can't generate codes.
 """
 from __future__ import annotations
 
+import re
 import base64
 import hashlib
 import hmac
@@ -83,7 +84,12 @@ def qr_svg(data: str) -> str | None:
     except ImportError:
         return None
     try:
-        return segno.make(data, error="m").svg_inline(scale=5, border=2, dark="#000000", light="#ffffff")
+        svg = segno.make(data, error="m").svg_inline(scale=5, border=2, dark="#000000", light="#ffffff")
+        # segno gives a fixed pixel size and no viewBox, so the page couldn't scale it without cropping it
+        m = re.match(r'<svg width="(\d+)" height="(\d+)"', svg)
+        if m:
+            svg = svg.replace("<svg ", f'<svg viewBox="0 0 {m.group(1)} {m.group(2)}" ', 1)
+        return svg
     except Exception:
         return None
 
