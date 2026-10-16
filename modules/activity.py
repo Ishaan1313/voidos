@@ -96,7 +96,7 @@ _NOTIFY_DEFAULTS = {
               "use_tls": True, "from_addr": "", "to_addr": ""},
     "discord": {"enabled": False, "webhook_url": ""},
     "telegram": {"enabled": False, "bot_token": "", "chat_id": ""},
-    "ifttt": {"enabled": False, "key": "", "event": "voidos_alert"},
+    "ntfy": {"enabled": False, "server": "https://ntfy.sh", "topic": "", "token": ""},
 }
 
 def _notify_load() -> dict:
@@ -128,7 +128,7 @@ def _notify_load() -> dict:
         if not isinstance(stored, dict):
             stored = {}
     out = json.loads(json.dumps(_NOTIFY_DEFAULTS))  # deep copy, cheap and simple for a tiny dict
-    for k in ("email", "discord", "telegram", "ifttt"):
+    for k in ("email", "discord", "telegram", "ntfy"):
         out[k].update(stored.get(k, {}))
     out["events"].update(stored.get("events", {}))
     return out
@@ -154,9 +154,9 @@ def _notify_dispatch(cfg: dict, title: str, body: str) -> dict:
     if cfg["telegram"]["enabled"] and cfg["telegram"]["bot_token"] and cfg["telegram"]["chat_id"]:
         ok, msg = notifications.send_telegram(cfg["telegram"]["bot_token"], cfg["telegram"]["chat_id"], title, body)
         results["telegram"] = {"ok": ok, "message": msg}
-    if cfg["ifttt"]["enabled"] and cfg["ifttt"]["key"]:
-        ok, msg = notifications.send_ifttt(cfg["ifttt"]["key"], cfg["ifttt"]["event"], title, body, OS_NAME)
-        results["ifttt"] = {"ok": ok, "message": msg}
+    if cfg["ntfy"]["enabled"] and cfg["ntfy"]["topic"]:
+        ok, msg = notifications.send_ntfy(cfg["ntfy"]["server"], cfg["ntfy"]["topic"], cfg["ntfy"]["token"], title, body)
+        results["ntfy"] = {"ok": ok, "message": msg}
     return results
 
 # Delivery status per channel, shown under each channel in Settings so a
@@ -197,7 +197,7 @@ def _notify_send_with_retry(cfg: dict, title: str, body: str) -> None:
     if failed:
         time.sleep(30)
         retry_cfg = json.loads(json.dumps(cfg))
-        for ch in ("email", "discord", "telegram", "ifttt"):
+        for ch in ("email", "discord", "telegram", "ntfy"):
             if ch not in failed:
                 retry_cfg[ch]["enabled"] = False
         results.update(_notify_dispatch(retry_cfg, title, body))
@@ -240,7 +240,7 @@ def _maybe_notify(entry: dict) -> None:
     cfg = _notify_load()
     if not cfg["events"].get(entry["action"], True):
         return
-    if not any(cfg[c]["enabled"] for c in ("email", "discord", "telegram", "ifttt")):
+    if not any(cfg[c]["enabled"] for c in ("email", "discord", "telegram", "ntfy")):
         return  # skip the config-load-and-thread-spawn entirely when nothing's on
     key = f"{entry['action']}|{entry.get('target') or ''}|{entry.get('ip') or ''}"
     now = time.time()

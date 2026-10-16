@@ -1976,19 +1976,21 @@ async function loadNotifyPanel(){
         </div>
       </div>
       <div class="notify-channel">
-        <div class="notify-ch-head">${ghSwitch('nIftttEn',cfg.ifttt.enabled,dis)}<label for="nIftttEn" style="cursor:pointer;font-weight:600">IFTTT</label>
-          ${IS_SUPERUSER?'<button class="btn btn-g btn-sm" style="margin-left:auto" onclick="testNotifyChannel(\'ifttt\')">Send test</button>':''}</div>
-        ${notifyStatusLine(cfg.status&&cfg.status.ifttt)}
-        <div class="notify-ch-body" data-ch="ifttt">
-          <div class="sdesc" style="margin-bottom:8px">IFTTT turns each alert into whatever you set up there: a phone notification, an SMS, a message in
-            another app. In IFTTT, create an applet that starts with <b>Webhooks → Receive a web request</b> using the event name below,
-            then copy your key from <a href="https://ifttt.com/maker_webhooks" target="_blank" rel="noopener">ifttt.com/maker_webhooks</a> → Documentation.
-            The alert's title is <code>Value1</code>, its details <code>Value2</code> and the server's name <code>Value3</code>.</div>
-          <div class="fg"><label class="fgl">Webhooks key ${cfg.ifttt.has_key?'(saved — leave blank to keep)':''}</label>
-            <input class="fgi" id="nIftttKey" type="password" ${dis} autocomplete="off" placeholder="${cfg.ifttt.has_key?'••••••••••':'your IFTTT Webhooks key'}"/></div>
-          <div class="fg"><label class="fgl">Event name</label>
-            <input class="fgi" id="nIftttEvent" ${dis} value="${escA(cfg.ifttt.event||'voidos_alert')}" placeholder="voidos_alert"/></div>
-          ${IS_SUPERUSER?'<button class="btn btn-p btn-sm" onclick="saveNotifyChannel(\'ifttt\')">Save</button>':''}
+        <div class="notify-ch-head">${ghSwitch('nNtfyEn',cfg.ntfy.enabled,dis)}<label for="nNtfyEn" style="cursor:pointer;font-weight:600">ntfy (phone push)</label>
+          ${IS_SUPERUSER?'<button class="btn btn-g btn-sm" style="margin-left:auto" onclick="testNotifyChannel(\'ntfy\')">Send test</button>':''}</div>
+        ${notifyStatusLine(cfg.status&&cfg.status.ntfy)}
+        <div class="notify-ch-body" data-ch="ntfy">
+          <div class="sdesc" style="margin-bottom:8px">Free push notifications on your phone. Install the <b>ntfy</b> app (Android or iPhone), tap <b>+</b>
+            and subscribe to the same topic you enter here. On the public server <code>ntfy.sh</code> anyone who knows a topic can read it, so use the
+            <b>Generate</b> button for a long random one and keep it private.</div>
+          <div class="fg"><label class="fgl">Server</label>
+            <input class="fgi" id="nNtfyServer" ${dis} value="${escA(cfg.ntfy.server||'https://ntfy.sh')}" placeholder="https://ntfy.sh"/></div>
+          <div class="fg"><label class="fgl">Topic ${cfg.ntfy.has_topic&&!cfg.ntfy.topic?'(saved \u2014 leave blank to keep)':''}</label>
+            <div style="display:flex;gap:8px"><input class="fgi" id="nNtfyTopic" ${dis} value="${escA(cfg.ntfy.topic||'')}" placeholder="${cfg.ntfy.has_topic&&!cfg.ntfy.topic?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'voidos-alerts-\u2026'}" autocomplete="off" spellcheck="false" style="flex:1"/>
+              ${IS_SUPERUSER?'<button class="btn btn-g btn-sm" type="button" id="nNtfyGen">Generate</button>':''}</div></div>
+          <div class="fg"><label class="fgl">Access token (optional) ${cfg.ntfy.has_token?'(saved \u2014 leave blank to keep)':''}</label>
+            <input class="fgi" id="nNtfyToken" type="password" ${dis} autocomplete="off" placeholder="${cfg.ntfy.has_token?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'only for a protected topic or your own server'}"/></div>
+          ${IS_SUPERUSER?'<button class="btn btn-p btn-sm" onclick="saveNotifyChannel(\'ntfy\')">Save</button>':''}
         </div>
       </div>
       <div class="notify-events">
@@ -2004,8 +2006,12 @@ async function loadNotifyPanel(){
         document.getElementById('nEv-'+k)?.addEventListener('change',e=>
           api('/api/admin/notifications',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({events:{[k]:e.target.checked}})}));
       });
-      ['nEmailEn','nDiscordEn','nTelegramEn','nIftttEn'].forEach(id=>{
-        document.getElementById(id)?.addEventListener('change',()=>saveNotifyChannel({nEmailEn:'email',nDiscordEn:'discord',nTelegramEn:'telegram',nIftttEn:'ifttt'}[id]));
+      document.getElementById('nNtfyGen')?.addEventListener('click',()=>{
+        const a=new Uint8Array(12);crypto.getRandomValues(a);
+        document.getElementById('nNtfyTopic').value='voidos-'+[...a].map(x=>x.toString(16).padStart(2,'0')).join('');
+      });
+      ['nEmailEn','nDiscordEn','nTelegramEn','nNtfyEn'].forEach(id=>{
+        document.getElementById(id)?.addEventListener('change',()=>saveNotifyChannel({nEmailEn:'email',nDiscordEn:'discord',nTelegramEn:'telegram',nNtfyEn:'ntfy'}[id]));
       });
     }
   }catch(e){el.innerHTML=`<div class="sdesc" style="color:var(--rd)">Couldn’t load: ${esc(e.message)}</div>`}
@@ -2016,8 +2022,8 @@ async function saveNotifyChannel(channel){
     smtp_port:parseInt(document.getElementById('nSmtpPort').value,10)||587,username:document.getElementById('nSmtpUser').value.trim(),
     password:document.getElementById('nSmtpPass').value,from_addr:document.getElementById('nSmtpFrom').value.trim(),to_addr:document.getElementById('nSmtpTo').value.trim()};
   else if(channel==='discord')body={enabled:document.getElementById('nDiscordEn').checked,webhook_url:document.getElementById('nDiscordUrl').value.trim()};
-  else if(channel==='ifttt')body={enabled:document.getElementById('nIftttEn').checked,key:document.getElementById('nIftttKey').value.trim(),
-    event:(document.getElementById('nIftttEvent').value||'').trim()||'voidos_alert'};
+  else if(channel==='ntfy')body={enabled:document.getElementById('nNtfyEn').checked,server:(document.getElementById('nNtfyServer').value||'').trim()||'https://ntfy.sh',
+    topic:document.getElementById('nNtfyTopic').value.trim(),token:document.getElementById('nNtfyToken').value.trim()};
   else body={enabled:document.getElementById('nTelegramEn').checked,bot_token:document.getElementById('nTgToken').value.trim(),chat_id:document.getElementById('nTgChat').value.trim()};
   const r=await(await api('/api/admin/notifications',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[channel]:body})})).json();
   if(r.ok){toast(channel[0].toUpperCase()+channel.slice(1)+' saved','success');loadNotifyPanel()}

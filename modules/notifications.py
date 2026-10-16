@@ -25,6 +25,7 @@ import smtplib
 import socket
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 from email.mime.text import MIMEText
 from email.utils import formatdate, make_msgid
@@ -87,32 +88,43 @@ def send_discord(webhook_url: str, title: str, body: str) -> tuple[bool, str]:
     return False, info or f"Discord returned HTTP {status}."
 
 
-_IFTTT_KEY_RE = re.compile(r"[A-Za-z0-9_-]{10,64}")
-_IFTTT_EVENT_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_NTFY_TOPIC_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_NTFY_MAX = 3500
 
 
-def send_ifttt(key: str, event: str, title: str, body: str, server: str = "Void OS") -> tuple[bool, str]:
-    """Fire an IFTTT Webhooks event: POST https://maker.ifttt.com/trigger/<event>/with/key/<key> with value1 = the
-    title, value2 = the details and value3 = the server's name. What happens next (a phone notification, an SMS, a
-    message in another app) is whatever applet the owner attached to that event in IFTTT."""
-    key, event = (key or "").strip(), (event or "").strip() or "voidos_alert"
-    if not _IFTTT_KEY_RE.fullmatch(key):
-        return False, ("That doesn't look like an IFTTT Webhooks key. Open ifttt.com/maker_webhooks, press "
-                       "Documentation and copy the key shown there (letters and digits only, not the whole URL).")
-    if not _IFTTT_EVENT_RE.fullmatch(event):
-        return False, "The event name can only contain letters, digits, underscores and hyphens."
-    url = f"https://maker.ifttt.com/trigger/{event}/with/key/{key}"
-    ok, status, info = _http_post_json(url, {"value1": title[:250], "value2": body[:1500], "value3": server[:80]}, "IFTTT")
-    if ok:
-        return True, "Delivered to IFTTT (IFTTT only confirms it got the event; check the applet's Activity page to see it ran)"
-    if status in (401, 403):
-        return False, ("IFTTT says that key isn't valid. Open ifttt.com/maker_webhooks, press Documentation and "
-                       "copy the key again.")
-    if status == 429:
-        return False, "IFTTT is rate-limiting this key (too many events); it will recover on its own."
-    if status >= 500:
-        return False, f"IFTTT is having trouble right now (HTTP {status}); it will be retried."
-    return False, info or f"IFTTT returned HTTP {status}."
+def send_ntfy(server: str, topic: str, token: str, title: str, body: str) -> tuple[bool, str]:
+    """Publish to ntfy (https://ntfy.sh, or a server of your own) as JSON, which keeps emoji and any language
+    intact in the title. The phone app shows it as a push notification for everyone subscribed to the topic."""
+    server = (server or "https://ntfy.sh").strip().rstrip("/")
+    topic, token = (topic or "").strip(), (token or "").strip()
+    pu = urllib.parse.urlparse(server)
+    if pu.scheme not in ("http", "https") or not pu.hostname or pu.username or pu.password or pu.query or pu.fragment:
+        return False, "The ntfy server address should look like https://ntfy.sh (no login, query or extra parts)."
+    if not _NTFY_TOPIC_RE.fullmatch(topic):
+        return False, "The topic can only contain letters, digits, underscores and hyphens (up to 64 characters)."
+    urgent = title.lstrip().startswith(("\U0001F6A8", "\u26a0"))
+    payload = {"topic": topic, "title": title[:250], "message": body[:_NTFY_MAX],
+               "priority": 4 if urgent else 3, "tags": ["rotating_light"] if urgent else ["bell"]}
+    headers = {"Content-Type": "application/json", "User-Agent": "VoidOS"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    try:
+        r = urllib.request.Request(server + "/", method="POST", headers=headers, data=json.dumps(payload).encode())
+        with urllib.request.urlopen(r, timeout=TIMEOUT) as resp:
+            return True, "Delivered to ntfy"
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return False, ("ntfy refused it: that topic needs a login. Add an access token (ntfy account \u2192 "
+                           "Access tokens) or use a topic that isn't protected.")
+        if e.code == 404:
+            return False, "That ntfy address doesn't answer like an ntfy server. Check the server address."
+        if e.code == 429:
+            return False, "ntfy is rate-limiting this server (too many messages); it will recover on its own."
+        if e.code == 413:
+            return False, "ntfy says the message was too large."
+        return False, f"ntfy returned HTTP {e.code}."
+    except Exception as e:
+        return False, _network_reason(e, "the ntfy server")
 
 
 def send_telegram(bot_token: str, chat_id: str, title: str, body: str) -> tuple[bool, str]:

@@ -1097,19 +1097,18 @@ Panic, Super User transfer, backup restore, a cleared log), low disk space, and
 failing notification channels. Repeated security events collapse to one item per
 10 minutes.
 
-### Email, Discord, Telegram and IFTTT
+### Email, Discord, Telegram and ntfy
 
 **Settings → Notifications**: turn on any channel and choose which events send.
 Admins can see the settings; the **Super User** changes them and sends test
 messages.
 
-- **IFTTT** turns each alert into whatever you build there: a phone notification, an SMS, a message in
-  another app. In IFTTT make an applet that starts with *Webhooks → Receive a web request* and an event
-  name (default `voidos_alert`), then paste your key from
-  [ifttt.com/maker_webhooks](https://ifttt.com/maker_webhooks) → Documentation into Settings → Notifications → IFTTT. Void OS
-  sends `https://maker.ifttt.com/trigger/<event>/with/key/<key>` with `Value1` = the alert's title,
-  `Value2` = its details and `Value3` = the server's name. IFTTT only confirms it received the event, so
-  check the applet's Activity page the first time. The key is stored encrypted and never sent back to the browser.
+- **ntfy** sends free push notifications to your phone. Install the ntfy app (Android or iPhone), subscribe
+  to a topic, and enter the same topic under Settings → Notifications → ntfy. On the public server
+  `ntfy.sh` anyone who knows a topic can read it, so press **Generate** for a long random one and keep it private;
+  your own ntfy server works too (enter its address), with an optional access token for a protected topic. Urgent
+  alerts (🚨 and ⚠️ titles) are sent with high priority. The topic and token are stored encrypted; the token is never
+  sent back to the browser and only the Super User sees the topic.
 - Each channel shows its **last delivery result** and, if it failed, why in plain
   words (*"Gmail needs an app password"*, *"this Discord webhook was deleted"*,
   *"send the bot a message first"*, *"465 = SSL, 587 = STARTTLS"*).
