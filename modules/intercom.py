@@ -64,6 +64,11 @@ def configure(devices_path: Path, atomic_write_fn, audit_fn):
     _atomic_write = atomic_write_fn
     _audit_fn = audit_fn
     BT.configure(devices_path, atomic_write_fn)
+    BT.set_audit(audit_fn)
+    try:
+        BT.start_acceptor()           # accept inbound Bluetooth pairing/connections (Linux; VOID_BT_ACCEPT=off to disable)
+    except Exception:
+        pass
 
 
 def _audit(action: str, user: dict | None, target: str = "", detail: str = ""):

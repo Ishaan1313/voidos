@@ -15,6 +15,7 @@ and disconnect() explains what to do instead.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -65,7 +66,7 @@ _HFP_MARKERS = ("Handsfree", "Headset")
 
 def _run_bt(args: list, timeout: float = 10) -> str:
     try:
-        r = subprocess.run(["bluetoothctl", *args], capture_output=True,
+        r = subprocess.run([*_BTCTL, *args], capture_output=True,
                             text=True, timeout=timeout)
         return r.stdout
     except Exception:
@@ -139,7 +140,7 @@ def _ensure_powered() -> tuple[bool, str]:
                     "'rfkill list bluetooth' isn't showing it soft-blocked.")
 
 
-def scan(duration: int = 8) -> dict:
+def scan(duration: int = 20) -> dict:
     """Blocking scan — the route calling this runs it in a background
     thread (see voidos.py's /api/intercom/bluetooth/scan) since a Flask
     request thread shouldn't block for the full scan window. Returns
@@ -160,13 +161,316 @@ def scan(duration: int = 8) -> dict:
     # old default, any scan longer than 10s could get killed by Python
     # *before* bluetoothctl's own --timeout ever fired, discarding the
     # scan's results and silently reporting them as "".
-    out = _run_bt(["--timeout", str(d), "scan", "on"], timeout=d + 8)
+    found = _scan_session(d)
     devices = list_devices()
-    warning = "" if devices or out.strip() else (
-        "Scan completed but bluetoothctl returned nothing — the adapter may "
-        "not actually be discovering. Try again, or check 'bluetoothctl scan on' "
-        "directly on the host.")
+    known = {x["mac"] for x in devices}
+    for mac, f in found.items():                 # seen during the scan but not yet in BlueZ's own list
+        if mac not in known:
+            devices.append({"mac": mac, "name": f.get("name") or mac, "paired": False, "connected": False,
+                            "profiles": {"a2dp": False, "hfp": False, "verified": False}})
+    for x in devices:
+        f = found.get(x["mac"])
+        x["seen_now"] = bool(f)
+        if f and f.get("rssi") is not None:
+            x["rssi"] = f["rssi"]
+    def _unnamed(x):                      # BlueZ shows an unnamed device as its address, with : or - between the bytes
+        return (x.get("name") or "").upper().replace("-", ":") == x["mac"]
+    devices.sort(key=lambda x: (not x.get("seen_now"), _unnamed(x), not is_amazon_speaker(x.get("name", "")),
+                                x.get("name", "").lower()))
+    warning = "" if devices or found else (
+        "Scan completed but nothing was found — the adapter may not actually be discovering. "
+        "Try again, or run 'bluetoothctl scan on' directly on the host to see what it reports.")
     return {"devices": devices, "warning": warning}
+
+
+# ══════════════════════════════════════════════════════════════════════
+# bluetoothctl sessions: a live scan, and the always-on "accept inbound connections" agent
+# ══════════════════════════════════════════════════════════════════════
+_BTCTL = ["bluetoothctl"]                       # replaced in tests
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]|\r")
+_DEV_RE = re.compile(r"\bDevice ([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})\b(.*)$")
+
+
+class _Session:
+    """One interactive bluetoothctl process. It runs on a pseudo-terminal where there is one, because
+    bluetoothctl only flushes its prompts (\"Authorize service ... (yes/no):\") promptly to a terminal;
+    on a plain pipe the output can sit in a buffer. Reading is done by a thread into a queue."""
+
+    def __init__(self, cmd):
+        import queue
+        self.q = queue.Queue()
+        self._fd = None
+        try:
+            import pty
+            master, slave = pty.openpty()
+            self.p = subprocess.Popen(cmd, stdin=slave, stdout=slave, stderr=slave, close_fds=True)
+            import os as _os
+            _os.close(slave)
+            self._fd = master
+            threading.Thread(target=self._read_fd, daemon=True, name="bt-session-read").start()
+        except ImportError:                       # no pty on this platform: plain pipes
+            self.p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            threading.Thread(target=self._read_pipe, daemon=True, name="bt-session-read").start()
+
+    def _read_fd(self):
+        import os as _os
+        while True:
+            try:
+                data = _os.read(self._fd, 4096)
+            except OSError:
+                data = b""
+            self.q.put(data)
+            if not data:
+                return
+
+    def _read_pipe(self):
+        while True:
+            data = self.p.stdout.read1(4096) if hasattr(self.p.stdout, "read1") else self.p.stdout.read(1)
+            self.q.put(data or b"")
+            if not data:
+                return
+
+    def send(self, line: str):
+        raw = (line + "\n").encode()
+        try:
+            if self._fd is not None:
+                import os as _os
+                _os.write(self._fd, raw)
+            else:
+                self.p.stdin.write(raw)
+                self.p.stdin.flush()
+        except (OSError, ValueError):
+            pass
+
+    def chunks(self, timeout: float):
+        """Yield decoded text as it arrives; ends on timeout (yields '') or when the process closes (None)."""
+        import queue
+        while True:
+            try:
+                data = self.q.get(timeout=timeout)
+            except queue.Empty:
+                yield ""
+                return
+            if not data:
+                yield None
+                return
+            yield data.decode("utf-8", "replace")
+
+    def close(self):
+        try:
+            self.send("quit")
+            self.p.wait(timeout=2)
+        except Exception:
+            try:
+                self.p.kill()
+            except Exception:
+                pass
+        if self._fd is not None:
+            try:
+                import os as _os
+                _os.close(self._fd)
+            except OSError:
+                pass
+
+
+def _lines(buf: str):
+    """Split a stream buffer into complete lines and the unfinished tail."""
+    buf = _ANSI_RE.sub("", buf)
+    parts = buf.split("\n")
+    return parts[:-1], parts[-1]
+
+
+def _scan_session(seconds: int) -> dict:
+    """Run discovery for `seconds` inside one bluetoothctl session and collect every device that shows up
+    (name, signal strength). One continuous session beats the old one-shot call: nothing is lost when the
+    process exits, and classic Bluetooth devices (an Echo in pairing mode) get a whole inquiry cycle."""
+    found = {}
+    try:
+        s = _Session(_BTCTL)
+    except OSError:
+        return found
+    try:
+        s.send("scan on")
+        end = time.time() + seconds
+        tail = ""
+        while time.time() < end:
+            got = next(s.chunks(min(1.0, max(0.1, end - time.time()))), "")
+            if got is None:
+                break
+            if not got:
+                continue
+            lines, tail = _lines(tail + got)
+            for ln in lines:
+                m = _DEV_RE.search(ln)
+                if not m:
+                    continue
+                mac, rest = m.group(1).upper(), m.group(2).strip()
+                d = found.setdefault(mac, {"name": "", "rssi": None})
+                if "[DEL]" in ln:
+                    found.pop(mac, None)
+                    continue
+                if rest.startswith(("Name:", "Alias:")):
+                    d["name"] = rest.split(":", 1)[1].strip() or d["name"]
+                elif rest.startswith("RSSI:"):
+                    mm = re.search(r"(-?\d+)\)?\s*$", rest)
+                    d["rssi"] = int(mm.group(1)) if mm else d["rssi"]
+                elif "[NEW]" in ln and rest and ":" not in rest.split()[0]:
+                    d["name"] = rest
+        s.send("scan off")
+    finally:
+        s.close()
+    return found
+
+
+# ── accept inbound pairing and connections ───────────────────────────────
+# The server presents itself as a Bluetooth audio device that anything nearby can pair with, so an Echo can
+# be connected from the Alexa app ("Pair a new device" -> this server). It needs three things BlueZ does not
+# do by itself: be discoverable and pairable, have an agent that answers pairing / authorisation prompts,
+# and trust a device once it has paired so it can come back later without asking again.
+# Keyboards, mice and game controllers are never accepted (an HID device could type into the server).
+ACCEPT_INBOUND = os.environ.get("VOID_BT_ACCEPT", "on").strip().lower() not in ("0", "off", "false", "no")
+ACCEPT_ANY_CLASS = os.environ.get("VOID_BT_ACCEPT_ALL", "").strip().lower() in ("1", "on", "true", "yes")
+_acc = {"running": False, "discoverable": False, "recent": [], "stop": threading.Event(), "thread": None}
+_audit_cb = None
+
+
+def set_audit(fn):
+    global _audit_cb
+    _audit_cb = fn
+
+
+def _acc_note(msg: str):
+    _acc["recent"] = ([{"t": time.time(), "msg": msg}] + _acc["recent"])[:20]
+    if _audit_cb:
+        try:
+            _audit_cb("intercom_bt_inbound", None, target="", detail=msg[:200])
+        except Exception:
+            pass
+
+
+def _device_facts(mac: str) -> dict:
+    """Name, icon and class of a device as BlueZ knows it right now."""
+    out = _run_bt(["info", mac], timeout=6)
+    facts = {"name": "", "icon": "", "class": ""}
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("Name:") and not facts["name"]:
+            facts["name"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Alias:") and not facts["name"]:
+            facts["name"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Icon:"):
+            facts["icon"] = line.split(":", 1)[1].strip().lower()
+        elif line.startswith("Class:"):
+            facts["class"] = line.split(":", 1)[1].strip()
+    return facts
+
+
+def _inbound_allowed(mac: str) -> tuple[bool, str]:
+    f = _device_facts(mac)
+    label = f["name"] or mac
+    if not ACCEPT_ANY_CLASS and f["icon"].startswith("input-"):
+        return False, f"Refused {label}: keyboards, mice and game controllers aren't accepted"
+    return True, f"Accepted {label}"
+
+
+def _settle_new_device(mac: str):
+    """After pairing: trust it (so it can reconnect by itself) and bring up its audio connection."""
+    _run_bt(["trust", mac], timeout=8)
+    time.sleep(3)
+    if not bluetoothctl_info(mac).get("connected"):
+        _run_bt(["connect", mac], timeout=20)
+
+
+def _acceptor_main():
+    stop = _acc["stop"]
+    wait = 5
+    while not stop.is_set():
+        s = None
+        try:
+            if not shutil.which(_BTCTL[0]) and _BTCTL == ["bluetoothctl"]:
+                stop.wait(60)
+                continue
+            _ensure_powered()
+            s = _Session(_BTCTL)
+            _acc["running"] = True
+            for c in ("agent off", "agent NoInputNoOutput", "default-agent", "pairable-timeout 0",
+                      "pairable on", "discoverable-timeout 0", "discoverable on"):
+                s.send(c)
+                time.sleep(0.25)
+            _acc["discoverable"] = True
+            current, tail, settled = None, "", set()
+            while not stop.is_set():
+                got = next(s.chunks(1.0), "")
+                if got is None:
+                    break                              # bluetoothctl exited: start again below
+                text = tail + got if got else tail
+                lines, tail = _lines(text)
+                check = lines + ([tail] if tail else [])
+                for ln in check:
+                    low = ln.lower()
+                    m = _DEV_RE.search(ln)
+                    if m:
+                        current = m.group(1).upper()
+                    if "(yes/no)" in low:
+                        if current:
+                            ok, why = _inbound_allowed(current)
+                            s.send("yes" if ok else "no")
+                            if not ok:
+                                _run_bt(["remove", current], timeout=8)
+                            _acc_note(why)
+                        else:
+                            s.send("yes")
+                        tail = ""
+                    elif "enter pin code" in low or "request pin" in low:
+                        s.send("0000")
+                        tail = ""
+                    elif "enter passkey" in low:
+                        s.send("0")
+                        tail = ""
+                if tail and "(yes/no)" in tail.lower():
+                    pass
+                for ln in lines:
+                    m = _DEV_RE.search(ln)
+                    if m and "Paired: yes" in ln:
+                        mac = m.group(1).upper()
+                        if mac not in settled:
+                            settled.add(mac)
+                            threading.Thread(target=_settle_new_device, args=(mac,), daemon=True).start()
+                    elif m and "Connected: yes" in ln and not ACCEPT_ANY_CLASS:
+                        mac = m.group(1).upper()
+                        if _device_facts(mac)["icon"].startswith("input-"):
+                            _run_bt(["disconnect", mac], timeout=8)
+                            _run_bt(["remove", mac], timeout=8)
+                            _acc_note(f"Disconnected {mac}: input devices aren't accepted")
+            wait = 5
+        except Exception:
+            wait = min(wait * 2, 120)
+        finally:
+            _acc["running"] = False
+            _acc["discoverable"] = False
+            if s is not None:
+                s.close()
+        stop.wait(wait)
+
+
+def start_acceptor():
+    """Start accepting inbound Bluetooth connections (Linux only; a no-op elsewhere or when turned off with
+    VOID_BT_ACCEPT=off)."""
+    if sys.platform != "linux" or not ACCEPT_INBOUND or _acc["thread"] is not None:
+        return False
+    if not shutil.which("bluetoothctl"):
+        return False
+    _acc["stop"].clear()
+    t = threading.Thread(target=_acceptor_main, daemon=True, name="bt-acceptor")
+    _acc["thread"] = t
+    t.start()
+    return True
+
+
+def acceptor_status() -> dict:
+    return {"enabled": ACCEPT_INBOUND, "running": _acc["running"], "discoverable": _acc["discoverable"],
+            "recent": [r["msg"] for r in _acc["recent"][:5]]}
+
 
 
 def pair(mac: str) -> tuple[bool, str]:
@@ -322,6 +626,7 @@ def capabilities() -> dict:
                              "headset won't appear as an audio device.")
         res["hints"].append("sudo apt install libspa-0.2-bluetooth && systemctl --user restart wireplumber pipewire pipewire-pulse")
     res["available"] = res["adapter_present"]
+    res["accepting"] = acceptor_status()
     return res
 
 
@@ -669,7 +974,7 @@ def list_devices() -> list:  # noqa: F811
     return _tag(_raw_list_devices())
 
 
-def scan(duration: int = 8) -> dict:  # noqa: F811
+def scan(duration: int = 20) -> dict:  # noqa: F811
     res = _raw_scan(duration)
     res["devices"] = _tag(res.get("devices") or [])
     if not any(d.get("speaker_only") for d in res["devices"]) and not res.get("warning"):

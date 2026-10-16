@@ -768,7 +768,21 @@ check at the top lists what is missing and how to fix it, with commands you can 
 Every speaker and microphone the system offers is listed with a *Play a beep* /
 *Check level* test, so you know it is the right one. To add a Bluetooth speaker or
 headset, put it in pairing mode and press *Scan for devices*, then *Add*: it is
-paired, trusted and connected in one step and then appears under *Speakers*.
+paired, trusted and connected in one step and then appears under *Speakers*. A scan
+listens for 20 seconds in one continuous Bluetooth session (a speaker in pairing mode,
+an Echo especially, can take most of a Bluetooth inquiry cycle to answer), shows what it
+heard first with its signal strength, and lists unnamed devices last.
+
+**Connecting from the other side.** On Linux, Void OS also accepts inbound Bluetooth:
+the server is always discoverable and pairable and has a pairing agent that says yes,
+so you can connect a speaker *to* the server from its own screen, for example an Echo
+from the Alexa app (**Devices → your Echo → Bluetooth devices → Pair a new device**, then
+pick this server). Once paired, a device is trusted (so it can reconnect by itself) and
+its audio connection is brought up, and it appears under *Speakers*. Keyboards, mice and
+game controllers are always refused, because a paired input device could type into the
+server. `VOID_BT_ACCEPT=off` in `.env` turns inbound connections off (and the server stops
+being discoverable); `VOID_BT_ACCEPT_ALL=on` lifts the input-device refusal. What it accepted
+or refused is recorded in the activity log.
 
 **Quality.** Audio is 24 kHz mono, 20 ms frames, compressed 2:1 (mu-law, about
 190 kbit/s each way), with a small adaptive buffer on both ends so a bad network
