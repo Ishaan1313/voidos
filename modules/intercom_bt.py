@@ -339,6 +339,26 @@ def set_audit(fn):
     _audit_cb = fn
 
 
+_held: dict = {}                    # MAC -> time until which inbound pairing/connections from it are refused
+HOLD_SECONDS = 300
+
+
+def hold(mac: str, seconds: int = HOLD_SECONDS):
+    _held[mac.upper()] = time.time() + seconds
+
+
+def release_hold(mac: str):
+    _held.pop(mac.upper(), None)
+
+
+def is_held(mac: str) -> bool:
+    until = _held.get(mac.upper(), 0)
+    if until and until < time.time():
+        _held.pop(mac.upper(), None)
+        return False
+    return bool(until)
+
+
 def _acc_note(msg: str):
     _acc["recent"] = ([{"t": time.time(), "msg": msg}] + _acc["recent"])[:20]
     if _audit_cb:
@@ -368,6 +388,8 @@ def _device_facts(mac: str) -> dict:
 def _inbound_allowed(mac: str) -> tuple[bool, str]:
     f = _device_facts(mac)
     label = f["name"] or mac
+    if is_held(mac):
+        return False, f"Refused {label}: you just forgot it (press Add or Connect to use it again)"
     if not ACCEPT_ANY_CLASS and f["icon"].startswith("input-"):
         return False, f"Refused {label}: keyboards, mice and game controllers aren't accepted"
     return True, f"Accepted {label}"
@@ -436,6 +458,11 @@ def _acceptor_main():
                         if mac not in settled:
                             settled.add(mac)
                             threading.Thread(target=_settle_new_device, args=(mac,), daemon=True).start()
+                    elif m and "Connected: yes" in ln and is_held(m.group(1)):
+                        mac = m.group(1).upper()
+                        _run_bt(["disconnect", mac], timeout=8)
+                        _run_bt(["remove", mac], timeout=8)
+                        _acc_note(f"Disconnected {mac}: it was just forgotten")
                     elif m and "Connected: yes" in ln and not ACCEPT_ANY_CLASS:
                         mac = m.group(1).upper()
                         if _device_facts(mac)["icon"].startswith("input-"):
@@ -474,6 +501,7 @@ def acceptor_status() -> dict:
 
 
 def pair(mac: str) -> tuple[bool, str]:
+    release_hold(mac)
     out = _run_bt(["pair", mac], timeout=20)
     ok = "Pairing successful" in out or "already paired" in out.lower()
     if not ok and "AlreadyExists" in out:
@@ -482,6 +510,7 @@ def pair(mac: str) -> tuple[bool, str]:
 
 
 def connect(mac: str) -> tuple[bool, str]:
+    release_hold(mac)
     out = _run_bt(["connect", mac], timeout=15)
     ok = "Connection successful" in out or "already connected" in out.lower()
     if ok:
@@ -500,21 +529,46 @@ def connect(mac: str) -> tuple[bool, str]:
     return False, msg
 
 
+_GONE_WORDS = ("successful", "notconnected", "not connected", "not available", "doesnotexist", "does not exist",
+               "has been removed")
+
+
 def disconnect(mac: str) -> tuple[bool, str]:
-    out = _run_bt(["disconnect", mac], timeout=10)
-    ok = "Successful disconnected" in out or "not connected" in out.lower() or "Successful" in out
-    return ok, ("disconnected" if ok else "disconnect failed")
+    """Disconnect, and treat "it wasn't connected" as success: BlueZ answers org.bluez.Error.NotConnected when the
+    link is already down (the speaker dropped it first, or the state was stale), which is the result we want.
+    If it genuinely refuses, blocking the device makes BlueZ tear the link down, and unblocking frees it again."""
+    out = ""
+    for attempt in range(2):
+        out = _run_bt(["disconnect", mac], timeout=12)
+        if any(w in out.lower() for w in _GONE_WORDS):
+            return True, "disconnected"
+        time.sleep(1)
+    _run_bt(["block", mac], timeout=8)
+    time.sleep(0.7)
+    _run_bt(["unblock", mac], timeout=8)
+    if not bluetoothctl_info(mac).get("connected"):
+        return True, "disconnected"
+    last = out.strip().splitlines()[-1] if out.strip() else "no answer from bluetoothctl"
+    return False, "disconnect failed (" + last[:120] + ")"
 
 
 def remove(mac: str) -> tuple[bool, str]:
+    """Forget a device. It is disconnected and untrusted first, and for a few minutes anything it sends us is
+    refused: a speaker that still remembers the pairing (an Echo does) would otherwise reconnect at once and be
+    accepted again by the inbound agent."""
+    hold(mac)
+    _run_bt(["untrust", mac], timeout=6)
+    disconnect(mac)
     out = _run_bt(["remove", mac], timeout=10)
-    ok = "Device has been removed" in out
+    ok = any(w in out.lower() for w in _GONE_WORDS)
+    if not ok:
+        ok = "not available" in _run_bt(["info", mac], timeout=6).lower()      # already gone
     if ok:
         with _devices_lock:
             d = _load_devices()
             d.pop(mac, None)
             _save_devices(d)
-    return ok, ("removed" if ok else "remove failed")
+    return ok, ("removed" if ok else "remove failed: " + (out.strip().splitlines()[-1][:120] if out.strip() else "no answer"))
 
 
 def list_devices() -> list:
@@ -996,6 +1050,7 @@ def add_device(mac: str) -> dict:  # noqa: F811
     Returns {ok, steps: [{name, ok, message}], message}. An Echo gets a few connection attempts, because it
     often refuses the first one while it is still finishing pairing."""
     steps = []
+    release_hold(mac)
 
     def step(name, fn):
         ok, msg = fn()

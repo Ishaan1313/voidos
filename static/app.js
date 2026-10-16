@@ -4933,8 +4933,9 @@ function ixBtHtml(){
       <span class="ix-tag ${d.connected?'live':'quiet'}">${d.connected?'Connected':(d.paired?'Paired':'Nearby')}</span>
       ${d.speaker_only?'<span class="ix-tag">Speaker only</span>':''}
       ${d.hint?`<div class="sdesc">${esc(d.hint)}</div>`:''}</div>
-      <div class="ix-dev-a">${d.connected?'':`<button class="btn btn-p btn-sm" data-act="btadd" data-mac="${escA(d.mac)}">${d.paired?'Connect':'Add'}</button>`}
-        ${d.paired?`<button class="btn btn-g btn-sm" data-act="btforget" data-mac="${escA(d.mac)}">Forget</button>`:''}</div></div>`).join('')}</div>`;
+      <div class="ix-dev-a">${d.connected?`<button class="btn btn-g btn-sm" data-act="btdisc" data-mac="${escA(d.mac)}">Disconnect</button>`
+          :`<button class="btn btn-p btn-sm" data-act="btadd" data-mac="${escA(d.mac)}">${d.paired?'Connect':'Add'}</button>`}
+        ${d.paired||d.connected?`<button class="btn btn-g btn-sm" data-act="btforget" data-mac="${escA(d.mac)}">Forget</button>`:''}</div></div>`).join('')}</div>`;
 }
 async function ixOverview(){
   const d=await(await api('/api/intercom/overview')).json();
@@ -5123,6 +5124,13 @@ async function rIntercom(){
         await ixOverview();
         const r=await api('/api/intercom/bluetooth/devices');IX.btList=await r.json();
       }catch(_){toast('That didn’t work','error')}
+      finally{ixPaintSetup()}
+    }else if(act==='btdisc'){
+      b.disabled=true;b.textContent='Disconnecting\u2026';
+      try{const d=await post('/api/intercom/bluetooth/disconnect',{mac});
+        if(d.error||d.ok===false)toast(d.message||d.error||'Couldn\u2019t disconnect it','error');
+        await ixOverview();IX.btList=await(await api('/api/intercom/bluetooth/devices')).json();
+      }catch(_){toast('That didn\u2019t work','error')}
       finally{ixPaintSetup()}
     }else if(act==='btforget'){
       const d=await(await api(`/api/intercom/bluetooth/device/${encodeURIComponent(mac)}`,{method:'DELETE'})).json();
