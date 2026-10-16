@@ -773,6 +773,13 @@ listens for 20 seconds in one continuous Bluetooth session (a speaker in pairing
 an Echo especially, can take most of a Bluetooth inquiry cycle to answer), shows what it
 heard first with its signal strength, and lists unnamed devices last.
 
+**Volume.** On Linux each speaker in the list has a volume slider and a mute button. They
+set the system volume of that speaker (through `wpctl`, or `pactl`) and follow it: the
+sliders refresh every second or two, so a change made somewhere else (a key on the
+server, the Alexa app, another browser) shows up by itself. The Bluetooth card lists the
+devices the server already knows (paired or connected) as soon as you open it, with
+Disconnect and Forget, so a scan is only needed to find new ones.
+
 **Connecting from the other side.** On Linux, Void OS also accepts inbound Bluetooth:
 the server is always discoverable and pairable and has a pairing agent that says yes,
 so you can connect a speaker *to* the server from its own screen, for example an Echo

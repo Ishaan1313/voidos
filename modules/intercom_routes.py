@@ -173,6 +173,59 @@ def api_ic_test_input():
 
 
 # ── Bluetooth (admin) ─────────────────────────────────────────────────
+@app.route("/api/intercom/volumes")
+@require_intercom_access
+@_guarded
+def api_ic_volumes():
+    """The system volume of every speaker, for the sliders (polled every second or two)."""
+    bad = _admin_only()
+    if bad:
+        return bad
+    if intercom.A._vol_tool() is None:
+        return jsonify({"supported": False, "volumes": {}})
+    out = {}
+    for d in intercom.devices():
+        if d["kind"] == "output":
+            v = intercom.A.get_volume(d["id"])
+            if v is not None:
+                out[d["id"]] = v
+    return jsonify({"supported": True, "volumes": out})
+
+
+_vol_audit_at: dict = {}
+
+
+@app.route("/api/intercom/volume", methods=["POST"])
+@require_intercom_access
+@_guarded
+def api_ic_volume():
+    bad = _admin_only()
+    if bad:
+        return bad
+    d = request.get_json(silent=True) or {}
+    dev = str(d.get("device", ""))
+    if not any(x["id"] == dev and x["kind"] == "output" for x in intercom.devices()):
+        return jsonify({"error": "That speaker isn't available."}), 404
+    vol, muted = d.get("volume"), d.get("muted")
+    try:
+        vol = None if vol is None else max(0.0, min(1.0, float(vol)))
+    except (TypeError, ValueError):
+        return jsonify({"error": "volume must be a number between 0 and 1"}), 400
+    if muted is not None:
+        muted = bool(muted)
+    if vol is None and muted is None:
+        return jsonify({"error": "Nothing to change"}), 400
+    ok = intercom.A.set_volume(dev, vol, muted)
+    key = (_current_user()["id"], dev)
+    import time as _t
+    if _t.time() - _vol_audit_at.get(key, 0) > 30:          # a drag is many requests: one log entry per half minute
+        _vol_audit_at[key] = _t.time()
+        _audit("intercom_volume", _current_user(), target=dev, detail=("muted" if muted else f"{int(round((vol or 0) * 100))}%"))
+    if not ok:
+        return jsonify({"ok": False, "error": "Couldn't change that speaker's volume."}), 502
+    return jsonify({"ok": True, **(intercom.A.get_volume(dev) or {})})
+
+
 @app.route("/api/intercom/bluetooth/devices")
 @require_intercom_access
 @_guarded

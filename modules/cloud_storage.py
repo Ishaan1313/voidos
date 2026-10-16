@@ -136,7 +136,8 @@ def refresh_token(provider: str, client_id: str, client_secret: str, refresh_tok
         data=urllib.parse.urlencode(form).encode())
     tok = _json(status, body, f"{cfg['label']} token refresh")
     out = _normalize_token(tok)
-    out.setdefault("refresh_token", refresh_tok)  # providers don't always re-send it on refresh
+    if not out.get("refresh_token"):              # providers don't re-send it on refresh (Dropbox never does)
+        out["refresh_token"] = refresh_tok        # (setdefault would keep the empty string _normalize_token puts there)
     return out
 
 
@@ -161,6 +162,8 @@ def ensure_fresh(provider: str, client_id: str, client_secret: str, token_record
     fresh = refresh_token(provider, client_id, client_secret, token_record["refresh_token"])
     merged = dict(token_record)
     merged.update(fresh)
+    if not merged.get("refresh_token"):           # never lose the one we already had
+        merged["refresh_token"] = token_record["refresh_token"]
     return merged
 
 

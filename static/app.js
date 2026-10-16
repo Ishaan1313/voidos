@@ -4909,7 +4909,11 @@ IX.btOk=()=>!!(IX.health&&IX.health.bluetooth);
 function ixDeviceRows(kind){
   const list=IX.devices.filter(d=>d.kind===kind);
   if(!list.length)return `<div class="sdesc">None found${kind==='output'?'. Connect a speaker, plug in a headset, or add a Bluetooth device below.':'.'}</div>`;
-  return list.map(d=>`<div class="ix-dev"><div class="ix-dev-n">${esc(d.name)}${d.default?' <span class="ix-tag quiet">default</span>':''}</div>
+  return list.map(d=>`<div class="ix-dev ${kind==='output'?'ix-dev-spk':''}"><div class="ix-dev-n">${esc(d.name)}${d.default?' <span class="ix-tag quiet">default</span>':''}
+    ${kind==='output'?`<div class="ix-vol-row" data-vdev="${escA(d.id)}" hidden>
+      <button class="ix-vol-mute" type="button" data-act="spkmute" data-dev="${escA(d.id)}" aria-label="Mute" title="Mute / unmute">\u{1F50A}</button>
+      <input type="range" class="ix-spk-vol" min="0" max="100" step="1" value="50" data-dev="${escA(d.id)}" aria-label="Volume of ${escA(d.name)}"/>
+      <span class="ix-vol-pct tnum">50%</span></div>`:''}</div>
     <button class="btn btn-g btn-sm" data-act="${kind==='output'?'beep':'level'}" data-dev="${escA(d.id)}">${kind==='output'?'Play a beep':'Check level'}</button></div>`).join('');
 }
 function ixPaintSetup(){
@@ -4924,6 +4928,49 @@ function ixPaintSetup(){
         `<div class="ix-bt-actions"><button class="btn btn-p btn-sm" id="ixScan">${_IX_ICO.bt} Scan for devices</button></div>
          <div id="ixBt">${ixBtHtml()}</div>`}
     </div>`;
+  ixVolApply();
+}
+// ── live speaker volumes: the sliders follow the system volume (polled) and set it as they are dragged ──
+IX.vols={};IX.volSupported=null;IX.volDrag=new Set();IX.volSetAt={};IX.volTimer=null;
+function ixVolApply(){
+  document.querySelectorAll('#ixSetup .ix-vol-row').forEach(row=>{
+    const id=row.dataset.vdev,v=IX.vols[id];
+    if(!v){row.hidden=true;return}
+    row.hidden=false;
+    const rng=row.querySelector('input'),pct=row.querySelector('.ix-vol-pct'),mute=row.querySelector('.ix-vol-mute');
+    const recent=Date.now()-(IX.volSetAt[id]||0)<1200;                 // don't fight a change we just made
+    if(!IX.volDrag.has(id)&&!recent){rng.value=Math.round(Math.min(1,v.volume)*100);pct.textContent=rng.value+'%'}
+    mute.textContent=v.muted?'\u{1F507}':(v.volume<0.34?'\u{1F508}':'\u{1F50A}');
+    row.classList.toggle('muted',!!v.muted);
+  });
+}
+async function ixVolPoll(){
+  clearTimeout(IX.volTimer);
+  const open=document.getElementById('ixSetupWrap');
+  if(!document.getElementById('ixSetup')||!open||!open.open||IX.volSupported===false)return;   // closed or gone: stop
+  if(!document.hidden){
+    try{
+      const d=await(await api('/api/intercom/volumes')).json();
+      if(d.supported===false){IX.volSupported=false;IX.vols={}}
+      else if(d.volumes){IX.volSupported=true;IX.vols=d.volumes}
+      ixVolApply();
+    }catch(_){}
+  }
+  IX.volTimer=setTimeout(ixVolPoll,1500);
+}
+async function ixVolSend(id,body){
+  IX.volSetAt[id]=Date.now();
+  try{const r=await api('/api/intercom/volume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:id,...body})});
+    const d=await r.json();
+    if(!r.ok||d.error)toast(d.error||'Couldn\u2019t change the volume','error');
+    else{IX.vols[id]={volume:d.volume!=null?d.volume:(body.volume!=null?body.volume:(IX.vols[id]||{}).volume||0),muted:d.muted!=null?d.muted:(body.muted!=null?body.muted:!!(IX.vols[id]||{}).muted)};ixVolApply()}
+  }catch(_){toast('Couldn\u2019t change the volume','error')}
+}
+// Bluetooth devices already known to this server (paired or connected) are listed without a scan.
+async function ixLoadKnownBt(){
+  if(IX.btList!=null)return;
+  try{const l=await(await api('/api/intercom/bluetooth/devices')).json();
+    if(Array.isArray(l)&&IX.btList==null){IX.btList=l.filter(d=>d.paired||d.connected);ixPaintSetup()}}catch(_){}
 }
 function ixBtHtml(){
   const l=IX.btList;
@@ -5022,7 +5069,8 @@ async function rIntercom(){
   </div>`;
   ixPaintStatus();ixPaintRooms();ixPaintDock();ixPaintSetup();
   if(IX.admin){
-    document.getElementById('ixSetupWrap').addEventListener('toggle',e=>{if(e.target.open&&!IX.health)ixLoadHealth()});
+    document.getElementById('ixSetupWrap').addEventListener('toggle',e=>{
+      if(e.target.open){if(!IX.health)ixLoadHealth();ixLoadKnownBt();ixVolPoll()}});
   }
   ixLoadHealth();
   IX.dead=false;IX.fatal='';IX.retry=0;
@@ -5139,6 +5187,22 @@ async function rIntercom(){
       ixPaintSetup();
     }
   };
+  if(setup){
+    let volT=null;
+    setup.addEventListener('input',e=>{
+      const r=e.target.closest&&e.target.closest('.ix-spk-vol');if(!r)return;
+      const id=r.dataset.dev;IX.volDrag.add(id);
+      const pct=r.parentElement.querySelector('.ix-vol-pct');if(pct)pct.textContent=r.value+'%';
+      clearTimeout(volT);volT=setTimeout(()=>ixVolSend(id,{volume:r.value/100}),90);
+    });
+    const endDrag=e=>{const r=e.target.closest&&e.target.closest('.ix-spk-vol');if(r){IX.volDrag.delete(r.dataset.dev);IX.volSetAt[r.dataset.dev]=Date.now()}};
+    setup.addEventListener('change',endDrag);
+    setup.addEventListener('pointerup',endDrag);
+    setup.addEventListener('click',e=>{
+      const b=e.target.closest&&e.target.closest('[data-act="spkmute"]');if(!b)return;
+      const id=b.dataset.dev,cur=IX.vols[id];ixVolSend(id,{muted:!(cur&&cur.muted)});
+    });
+  }
   setup&&setup.addEventListener('click',e=>{
     ixSetupClick(e).catch(err=>{
       toast('That didn’t work: '+((err&&err.message)||'Void OS couldn’t be reached. Check your connection and try again.'),'error');

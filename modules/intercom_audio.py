@@ -706,6 +706,91 @@ class PipeWireBackend:
         return _PwOutput(dev_id)
 
 
+# ── speaker volume (the operating system's own volume for an output device) ────────────────────────
+# Linux only, through `wpctl` (WirePlumber, installed with PipeWire) or, failing that, `pactl`. The browser
+# reads it every second or two, so the slider follows changes made anywhere else (the Alexa app, a keyboard
+# key, another browser).
+_vol_ids = {"t": 0.0, "map": {}}
+
+
+def _vol_tool() -> str | None:
+    if sys.platform == "win32":
+        return None
+    if shutil.which("wpctl"):
+        return "wpctl"
+    if shutil.which("pactl"):
+        return "pactl"
+    return None
+
+
+def _node_id_for(name: str) -> str | None:
+    """PipeWire's numeric id for a node name (wpctl wants the id); cached briefly."""
+    if time.time() - _vol_ids["t"] > 8 or name not in _vol_ids["map"]:
+        m = {}
+        try:
+            r = subprocess.run(["pw-dump"], capture_output=True, text=True, timeout=6)
+            for obj in json.loads(r.stdout):
+                if obj.get("type") == "PipeWire:Interface:Node":
+                    nm = ((obj.get("info") or {}).get("props") or {}).get("node.name")
+                    if nm:
+                        m[nm] = str(obj.get("id"))
+        except Exception:
+            pass
+        _vol_ids.update(t=time.time(), map=m)
+    return _vol_ids["map"].get(name)
+
+
+def _run_vol(args: list, timeout: float = 4.0) -> str | None:
+    try:
+        r = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        return r.stdout if r.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def get_volume(dev_id: str) -> dict | None:
+    """{"volume": 0..1+, "muted": bool} for an output device, or None when this machine can't say."""
+    tool = _vol_tool()
+    if tool == "wpctl":
+        target = "@DEFAULT_AUDIO_SINK@" if dev_id == DEFAULT_ID else _node_id_for(dev_id)
+        out = _run_vol(["wpctl", "get-volume", target]) if target else None
+        m = re.search(r"Volume:\s*([0-9.]+)", out or "")
+        if not m:
+            return None
+        return {"volume": round(float(m.group(1)), 3), "muted": "[MUTED]" in out}
+    if tool == "pactl":
+        sink = "@DEFAULT_SINK@" if dev_id == DEFAULT_ID else dev_id
+        vol = _run_vol(["pactl", "get-sink-volume", sink])
+        mute = _run_vol(["pactl", "get-sink-mute", sink])
+        m = re.search(r"(\d+)%", vol or "")
+        if not m:
+            return None
+        return {"volume": int(m.group(1)) / 100.0, "muted": "yes" in (mute or "").lower()}
+    return None
+
+
+def set_volume(dev_id: str, volume: float | None = None, muted: bool | None = None) -> bool:
+    tool = _vol_tool()
+    ok = True
+    if tool == "wpctl":
+        target = "@DEFAULT_AUDIO_SINK@" if dev_id == DEFAULT_ID else _node_id_for(dev_id)
+        if not target:
+            return False
+        if volume is not None:
+            ok = _run_vol(["wpctl", "set-volume", target, f"{max(0.0, min(1.0, float(volume))):.3f}"]) is not None and ok
+        if muted is not None:
+            ok = _run_vol(["wpctl", "set-mute", target, "1" if muted else "0"]) is not None and ok
+        return ok
+    if tool == "pactl":
+        sink = "@DEFAULT_SINK@" if dev_id == DEFAULT_ID else dev_id
+        if volume is not None:
+            ok = _run_vol(["pactl", "set-sink-volume", sink, f"{int(round(max(0.0, min(1.0, float(volume))) * 100))}%"]) is not None and ok
+        if muted is not None:
+            ok = _run_vol(["pactl", "set-sink-mute", sink, "1" if muted else "0"]) is not None and ok
+        return ok
+    return False
+
+
 # ══════════════════════════════════════════════════════════════════════
 # choosing one
 # ══════════════════════════════════════════════════════════════════════
