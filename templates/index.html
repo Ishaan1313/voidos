@@ -7,7 +7,7 @@
 <title>{{ os_name }}</title>
 <link rel="icon" type="image/x-icon" href="/static/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="32x32" href="/static/logo-32.png"/>
-<link rel="icon" type="image/svg+xml" sizes="any" href="/static/logo.svg" id="vlFav"/>
+<link rel="icon" type="image/svg+xml" sizes="any" href="/static/logo-tab.svg" id="vlFav"/>
 <script>
 // The tab icon follows the theme: the same logo, redrawn in the current accent colour.
 (function(){
@@ -16,7 +16,7 @@
     try{
       var c=getComputedStyle(document.documentElement).getPropertyValue('--pu').trim();
       if(!c||c===last||!/^#[0-9a-f]{3,8}$|^rgb|^hsl/i.test(c))return;last=c;
-      fetch('/static/logo.svg').then(function(r){return r.text()}).then(function(s){
+      fetch('/static/logo-tab.svg').then(function(r){return r.text()}).then(function(s){
         link.href='data:image/svg+xml,'+encodeURIComponent(s.split('#6d4aff').join(c));
       });
     }catch(e){}

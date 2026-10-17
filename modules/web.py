@@ -36,6 +36,53 @@ app = Flask(__name__, template_folder=str(VOID_ROOT / "templates"), static_folde
 # browser can cache the files indefinitely yet always fetches the new ones
 # after an update — new server code is never paired with stale JavaScript.
 _asset_cache = {}
+
+# ── Delivery of /static/: cached for a long time and compressed ─────────────────────────────────
+# app.js and app.css are requested with ?v=<hash of their contents>, so a changed file is always a new URL and the
+# old one can be kept for a year without a single revalidation request. Fonts and icons essentially never change.
+# Everything else (the terminal/viewer libraries, the logo, the service worker) is revalidated cheaply with its ETag.
+# Text assets are gzip-compressed once and kept in memory: app.js is 500 KB but about a quarter of that on the wire.
+_GZ_TYPES = ("text/css", "text/javascript", "application/javascript", "image/svg+xml", "application/json", "image/x-icon")
+_gz_cache: dict = {}
+
+def _static_delivery(r):
+    if r.status_code != 200 or request.method != "GET":
+        return
+    path = request.path
+    if request.args.get("v"):
+        r.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif path.startswith(("/static/fonts/", "/static/file-icons/")) or path.endswith((".png", ".ico", ".woff2")):
+        r.headers["Cache-Control"] = "public, max-age=2592000"
+    elif path.endswith(".svg"):
+        r.headers["Cache-Control"] = "public, max-age=86400"
+    elif path.endswith("/sw.js"):
+        r.headers["Cache-Control"] = "no-cache"
+    elif path.startswith("/static/vendor/"):
+        r.headers["Cache-Control"] = "public, max-age=3600"
+    if (r.mimetype in _GZ_TYPES and "gzip" in request.headers.get("Accept-Encoding", "")
+            and not r.headers.get("Content-Encoding") and "Range" not in request.headers and r.content_length is not None
+            and r.content_length > 1024):
+        try:
+            import gzip as _gzip
+            st = (VOID_ROOT / path.lstrip("/")).stat()
+            key = (path, st.st_mtime_ns, st.st_size)
+            data = _gz_cache.get(key)
+            if data is None:
+                r.direct_passthrough = False
+                data = _gzip.compress(r.get_data(), compresslevel=6)
+                if len(_gz_cache) > 64:
+                    _gz_cache.clear()
+                _gz_cache[key] = data
+            r.direct_passthrough = False
+            r.set_data(data)
+            r.headers["Content-Encoding"] = "gzip"
+            r.headers["Content-Length"] = str(len(data))
+            r.vary.add("Accept-Encoding")
+            if r.headers.get("ETag") and not r.headers["ETag"].startswith("W/"):
+                r.headers["ETag"] = "W/" + r.headers["ETag"]            # the bytes differ from the plain file, so the tag is "weak"
+        except Exception:
+            pass                                                        # never let compression break a static file
+
 def asset_v(name: str) -> str:
     import hashlib
     path = VOID_ROOT / "static" / name
@@ -424,6 +471,8 @@ def sec_hdrs(r):
         r.headers["Content-Security-Policy"] = (
             "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'")
         r.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    if request.path.startswith("/static/"):
+        _static_delivery(r)
     if request.path in ("/login", "/auth", "/logout"):
         r.headers["Cache-Control"] = "no-store"
     if request.path.startswith("/s/"):
