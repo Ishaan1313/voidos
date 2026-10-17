@@ -1430,19 +1430,8 @@ async function setBlobSpeed(speed){
 window.setBlobSpeed=setBlobSpeed;
 
 // ── UI Mode (Classic sidebar vs. home-screen-style home screen) ──────────────
-const WALLPAPER_PRESET_CSS={
-  nebula:'radial-gradient(circle at 20% 20%,#3a1fbf,transparent 55%),radial-gradient(circle at 80% 30%,#1fb6ff,transparent 50%),radial-gradient(circle at 50% 85%,#0d0b18,transparent 60%),#0b1220',
-  aurora:'radial-gradient(circle at 15% 80%,#18a976,transparent 55%),radial-gradient(circle at 85% 15%,#1fb6ff,transparent 50%),#081714',
-  sunset:'radial-gradient(circle at 30% 100%,#ff8a5c,transparent 55%),radial-gradient(circle at 80% 0%,#d92b3f,transparent 55%),#160b0c',
-  mono:'linear-gradient(160deg,#1c2333,#0b1220)',
-  forest:'radial-gradient(circle at 70% 20%,#157349,transparent 55%),radial-gradient(circle at 20% 80%,#0d5c40,transparent 55%),#050d0c',
-  midnight:'radial-gradient(circle at 50% 0%,#4a3aa8,transparent 60%),#0a0a12',
-};
 function wallpaperSwatches(current){
   let html='<button class="wallpaper-swatch ' + (!current?'active':'') + '" data-wallpaper-id="" title="None (theme default)" style="background:var(--sf2)">\u2715</button>';
-  html+=Object.keys(WALLPAPER_PRESET_CSS).map(id=>
-    `<button class="wallpaper-swatch ${current==='preset:'+id?'active':''}" data-wallpaper-id="preset:${id}" title="${id}" style="background:${WALLPAPER_PRESET_CSS[id]}"></button>`
-  ).join('');
   if(current.startsWith('custom:')){
     html+=`<button class="wallpaper-swatch active" data-wallpaper-id="${escA(current)}" title="Your upload" style="background:url('${escA(SETTINGS.wallpaper_url||'')}') center/cover"></button>`;
   }
@@ -1453,8 +1442,7 @@ function applyWallpaper(){
   const w=SETTINGS.wallpaper||'';
   if(!w){shell.style.removeProperty('--wallpaper-css');shell.classList.remove('has-wallpaper');return}
   let css='';
-  if(w.startsWith('preset:'))css=WALLPAPER_PRESET_CSS[w.slice(7)]||'';
-  else if(w.startsWith('custom:')&&SETTINGS.wallpaper_url)css=`url('${SETTINGS.wallpaper_url}') center/cover no-repeat`;
+  if(w.startsWith('custom:')&&SETTINGS.wallpaper_url)css=`url('${SETTINGS.wallpaper_url}') center/cover no-repeat`;
   if(css){shell.style.setProperty('--wallpaper-css',css);shell.classList.add('has-wallpaper')}
 }
 async function setWallpaper(id){
@@ -7131,7 +7119,7 @@ function rSettings(){
       <div class="scard">
         <div class="ssep">Background</div>
         <div class="srow col">
-          <div><div class="sdesc" style="margin-top:0">A wallpaper, shown behind the home-screen-mode home screen. Choose one of ours or upload your own.</div></div>
+          <div><div class="sdesc" style="margin-top:0">A wallpaper, shown behind the home-screen-mode home screen. Upload your own image.</div></div>
           <div class="wallpaper-grid" id="wallpaperGrid">${wallpaperSwatches(SETTINGS.wallpaper||'')}</div>
           <div style="display:flex;gap:8px;align-items:center">
             <input type="file" id="wallpaperFileInp" accept="image/png,image/jpeg,image/webp" style="display:none"/>

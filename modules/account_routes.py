@@ -78,6 +78,8 @@ def _render_app():
     safe = _safe_user(user)
     safe["settings"] = _get_user_settings(user)
     safe["settings"]["ui_mode_resolved"] = _resolve_ui_mode(safe["settings"])
+    if str(safe["settings"].get("wallpaper", "")).startswith("preset:"):
+        safe["settings"]["wallpaper"] = ""          # the built-in gradients no longer exist
     safe["settings"]["wallpaper_url"] = _wallpaper_url(user, safe["settings"]["wallpaper"])
     return render_template("index.html", view="app",
         os_name=OS_NAME, docker_ok=state.DOCKER_OK, docker_error=state.DOCKER_ERROR,
@@ -458,6 +460,8 @@ def api_me():
     safe = _safe_user(user)
     safe["settings"] = _get_user_settings(user)
     safe["settings"]["ui_mode_resolved"] = _resolve_ui_mode(safe["settings"])
+    if str(safe["settings"].get("wallpaper", "")).startswith("preset:"):
+        safe["settings"]["wallpaper"] = ""          # the built-in gradients no longer exist
     safe["settings"]["wallpaper_url"] = _wallpaper_url(user, safe["settings"]["wallpaper"])
     if user.get("role") == "guest" and GUEST_QUOTA_MB > 0:
         safe["quota"] = {"used_bytes": _quota_used_bytes(user), "cap_mb": GUEST_QUOTA_MB}
@@ -794,7 +798,7 @@ def api_wallpaper_upload():
     data = f.read(MAX_WALLPAPER_BYTES + 1)
     if len(data) > MAX_WALLPAPER_BYTES:
         return jsonify({"error": "Image too large (12MB max)"}), 400
-    wdir = _user_wallpaper_dir(user)
+    wdir = _user_wallpaper_dir(user, create=True)
     if sum(1 for x in wdir.iterdir() if x.is_file()) >= MAX_WALLPAPERS_PER_USER:
         return jsonify({"error": f"You can keep up to {MAX_WALLPAPERS_PER_USER} uploaded wallpapers — delete one first"}), 400
     fname = f"{secrets.token_hex(8)}{ext}"

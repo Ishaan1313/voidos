@@ -60,14 +60,14 @@ DEFAULT_SETTINGS = {
     # for this account regardless of the server default — see Settings →
     # Appearance and _resolve_ui_mode().
     "ui_mode": "auto",
-    # "" = default gradient background; "preset:<id>" one of WALLPAPER_PRESETS;
+    # "" = the theme's own background (the built-in gradients were removed);
     # "custom:<filename>" an image the user uploaded via /api/me/wallpaper/upload.
     "wallpaper": "",
 }
 VALID_THEMES = {"horizon", "void", "light", "emerald", "crimson"}
 VALID_UI_MODES = {"auto", "classic", "home"}
 
-WALLPAPER_PRESETS = {"nebula", "aurora", "sunset", "mono", "forest", "midnight"}
+WALLPAPER_PRESETS = set()     # the built-in gradients were removed; only a person's own upload can be a wallpaper
 
 # Home-cloud-style default subfolders (scaffolded
 # inside every user's own space). Only ever created inside a guest's own
@@ -181,9 +181,12 @@ def _resolve_ui_mode(settings: dict) -> str:
     return m if m in ("classic", "home") else _ui_mode_default()
 
 # ── Custom wallpapers ────────────────────────────────────────────────────
-def _user_wallpaper_dir(user: dict) -> Path:
+def _user_wallpaper_dir(user: dict, create: bool = False) -> Path:
+    """A person's wallpaper folder. Only an upload creates it (create=True), so nothing appears on disk until
+    someone actually uploads a wallpaper."""
     d = WALLPAPER_DIR / user["id"]
-    d.mkdir(parents=True, exist_ok=True)
+    if create:
+        d.mkdir(parents=True, exist_ok=True)
     return d
 
 def _safe_wallpaper_filename(user: dict, filename: str) -> Path | None:
@@ -197,13 +200,11 @@ def _safe_wallpaper_filename(user: dict, filename: str) -> Path | None:
         p.relative_to(WALLPAPER_DIR.resolve())
     except ValueError:
         return None
-    return p if p.exists() else None
+    return p if p.is_file() else None
 
 def _wallpaper_url(user: dict, wallpaper_setting: str) -> str:
     if not wallpaper_setting:
         return ""
-    if wallpaper_setting.startswith("preset:"):
-        return wallpaper_setting  # frontend maps preset ids to CSS gradients directly
     if wallpaper_setting.startswith("custom:"):
         fname = wallpaper_setting.split(":", 1)[1]
         if _safe_wallpaper_filename(user, fname):

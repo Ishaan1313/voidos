@@ -282,9 +282,9 @@ The **Dashboard** opens with a one-line status ("Everything's running…", or th
 specific problem), your app tiles, and a **Server** panel with processor and
 memory gauges, network speed, and a capacity bar per drive.
 
-**Themes and wallpaper:** six colour themes, a set of built-in backgrounds, or
-your own photo (JPG, PNG or WEBP, up to 12 MB, at most 5 uploads per account).
-Wallpapers are private to the account that uploaded them.
+**Themes and wallpaper:** six colour themes, or your own photo as a wallpaper
+(JPG, PNG or WEBP, up to 12 MB, at most 5 uploads per account). There are no built-in wallpapers, and the
+`wallpapers/` folder is only created by the first upload. Wallpapers are private to the account that uploaded them.
 
 **Settings** has a category list on the left and one page at a time:
 *Account*, *Appearance* (theme, background, layout, effects), *Security*

@@ -281,8 +281,7 @@ LEGACY_LAYOUT_MAP = [(o, n) for o, n in (("home/shared", SHARED_REL), ("home/per
                      if o != n]               # old relative path -> new, for stored paths
 # Custom-uploaded wallpaper images (see Settings → Appearance → Background).
 # Presets (gradients) need no storage — only a user's own uploaded image does.
-WALLPAPER_DIR = _void_path("VOID_WALLPAPER_DIR", "wallpapers")
-WALLPAPER_DIR.mkdir(parents=True, exist_ok=True)
+WALLPAPER_DIR = _void_path("VOID_WALLPAPER_DIR", "wallpapers")     # created by the first upload, not before
 # MAC addresses arriving from request bodies get validated against this
 # before ever reaching a bluetoothctl subprocess argument — same allowlist
 # discipline as the file-icon extension regex elsewhere in this file.
