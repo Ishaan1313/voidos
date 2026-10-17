@@ -4394,6 +4394,11 @@ function fvAudio(box,src,name){
   frame();
 }
 
+// Cloudflare tells us only the two-letter code; the browser knows the country's name.
+function countryName(o){
+  if(o.country)return o.country;
+  try{return new Intl.DisplayNames(['en'],{type:'region'}).of(o.country_code)||o.country_code}catch(_){return o.country_code}
+}
 async function viewFile(path,name){
   const pp=path.includes('/')?path.substring(0,path.lastIndexOf('/')):'';
   openMdl(name,`<div class="loading"><div class="loader"></div></div>`,
@@ -6994,7 +6999,7 @@ function sessionRow(s,showUser){
     <div class="user-avatar ${s.is_mine?'avatar-admin':'avatar-guest'}">\u{1F4BB}</div>
     <div class="user-info">
       <div class="user-name">${showUser?`${esc(s.username)} \u2014 `:''}${esc(s.label)} ${who}</div>
-      <div class="user-meta"><span class="ip-spoiler" data-sid="${s.id}" title="Click to reveal/hide"><span class="ip-spoiler-text">${esc(s.ip||'Unknown IP')}</span><canvas class="ip-spoiler-canvas"></canvas></span>${s.country?` (${flagEmoji(s.country_code)} ${esc(s.country)})`:''} &nbsp; \u2022 &nbsp; ${fmtLastSeen(s.last_seen_ts)} &nbsp; \u2022 &nbsp; Signed in ${s.created_at?new Date(s.created_at).toLocaleString():'\u2014'}</div>
+      <div class="user-meta"><span class="ip-spoiler" data-sid="${s.id}" title="Click to reveal/hide"><span class="ip-spoiler-text">${esc(s.ip||'Unknown IP')}</span><canvas class="ip-spoiler-canvas"></canvas></span>${(s.country||s.country_code)?` (${flagEmoji(s.country_code)} ${esc(countryName(s))})`:''} &nbsp; \u2022 &nbsp; ${fmtLastSeen(s.last_seen_ts)} &nbsp; \u2022 &nbsp; Signed in ${s.created_at?new Date(s.created_at).toLocaleString():'\u2014'}</div>
     </div>
     <div class="user-actions">
       ${canViewDetails?`<button class="btn btn-g btn-sm" id="sessDet-${s.id}"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;margin-right:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Details</button>`:''}
@@ -7030,7 +7035,7 @@ async function showSessionDetails(sid,anchorEl){
     </div>
     <div class="sess-details-body">
       ${row('IP address',d.ip)}
-      ${row('Country',d.country?`${flagEmoji(d.country_code)} ${d.country}`:'')}
+      ${row('Country',(d.country||d.country_code)?`${flagEmoji(d.country_code)} ${countryName(d)}`:'')}
       ${row('Browser',d.browser?`${d.browser} ${d.browser_version||''}`.trim():'')}
       ${row('Operating system',d.os?`${d.os} ${d.os_version||''}`.trim():'')}
       ${row('Engine',d.engine)}

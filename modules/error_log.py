@@ -25,7 +25,7 @@ from modules.config import AUDIT_FILE, AUDIT_MAX_ENTRIES, COOKIE_SEC, ERROR_LOG_
 from modules.web import _COOKIE, _serial, _sessions_lock, app
 from modules.activity import _audit
 from modules.auth import (
-    _describe_ua, _geolocate_and_update_session, _ip, _request_is_https, _sessions_load, _sessions_prune,
+    _cf_country, _describe_ua, _geolocate_and_update_session, _ip, _request_is_https, _sessions_load, _sessions_prune,
     _sessions_save,
 )
 from modules.users import _get_user_by_id
@@ -250,7 +250,7 @@ def _set_session(resp, uid: str, client_info: dict | None = None):
     resp.set_cookie(_COOKIE, _serial.dumps({"v": 3, "uid": uid, "sid": sid}),
         max_age=SESSION_HRS * 3600, httponly=True,
         secure=COOKIE_SEC or _request_is_https(), samesite="Lax")
-    threading.Thread(target=_geolocate_and_update_session, args=(sid, ip), daemon=True).start()
+    threading.Thread(target=_geolocate_and_update_session, args=(sid, ip, _cf_country()), daemon=True).start()
 
 def _validate_ws_cookie(cookies: dict) -> dict | None:
     """Validate a session token parsed from raw WebSocket handshake cookies.

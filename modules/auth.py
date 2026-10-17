@@ -120,13 +120,42 @@ def _ip():
         # CF-Connecting-IP is only believed when it agrees with that, or when
         # there's no X-Forwarded-For at all -- through nginx, a client can
         # simply send its own CF-Connecting-IP header.
+        # Cloudflare's own edge address can sit at the right end of the chain ("visitor, edge"), which made every
+        # visitor look like the same Cloudflare IP. Addresses of this machine and of Cloudflare's edge are never a
+        # visitor, so walk in from the right past them. Anything the client typed sits further left and is never reached.
         xff = [x.strip() for x in request.headers.get("X-Forwarded-For", "").split(",") if x.strip()]
         cf_ip = (request.headers.get("CF-Connecting-IP") or "").strip()
+        cf_ok = _valid_ip(cf_ip)
+        saw_edge = False
+        for hop in reversed(xff):
+            if not _valid_ip(hop) or hop in ("127.0.0.1", "::1"):
+                continue
+            if _is_cloudflare_ip(hop):
+                saw_edge = True
+                continue
+            return cf_ip if (saw_edge and cf_ok) else hop    # Cloudflare was in the chain: it sets CF-Connecting-IP itself
+        if cf_ok:
+            return cf_ip
         if xff:
             return xff[-1]
-        if cf_ip:
-            return cf_ip
     return request.remote_addr
+
+
+def _valid_ip(s: str) -> bool:
+    try:
+        ipaddress.ip_address(s)
+        return True
+    except ValueError:
+        return False
+
+
+def _cf_country() -> str:
+    """The visitor's two-letter country as Cloudflare saw it (CF-IPCountry), or "". Only believed when the request
+    really came through Cloudflare's tunnel or edge; "XX" (unknown) and "T1" (Tor) are not countries."""
+    if request.remote_addr not in ("127.0.0.1", "::1") and not _is_cloudflare_ip(request.remote_addr or ""):
+        return ""
+    c = (request.headers.get("CF-IPCountry") or "").strip().upper()
+    return c if len(c) == 2 and c.isalpha() and c not in ("XX", "T1") else ""
 
 def _request_is_https() -> bool:
     """True when this visitor reached us over HTTPS: directly, or through a proxy/tunnel on this machine or
@@ -357,9 +386,19 @@ def _geolocate_ip(ip: str) -> tuple:
         pass
     return ("", "")
 
-def _geolocate_and_update_session(sid: str, ip: str):
-    """Runs in a background thread after login already responded."""
-    country, code = _geolocate_ip(ip)
+def _geolocate_and_update_session(sid: str, ip: str, cf_code: str = ""):
+    """Runs in a background thread after login already responded. A country Cloudflare already told us
+    (CF-IPCountry) is used as it is: no lookup service sees the visitor's address."""
+    country, code = ("", cf_code) if cf_code else _geolocate_ip(ip)
+    if cf_code:                                   # the page turns the code into the country's name
+        with _sessions_lock:
+            sessions = _sessions_load()
+            for s in sessions:
+                if s.get("id") == sid:
+                    s["country_code"] = cf_code
+                    _sessions_save(sessions)
+                    return
+        return
     if not country: return
     with _sessions_lock:
         sessions = _sessions_load()
