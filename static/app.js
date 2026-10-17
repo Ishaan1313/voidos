@@ -5464,6 +5464,8 @@ function liveRefresh(kind){
       }else if(kind==='storage_changed'){
         _places=null;
         if(curV==='files'&&typeof curP==='string'&&!document.querySelector('.fitem.dragging'))rFiles(curP);
+      }else if(kind==='sessions_changed'){
+        if(curV==='sessions'&&document.getElementById('sessionsSection')&&document.getElementById('ovr')?.classList.contains('hidden'))loadSessions();
       }else if(kind==='users_changed'){
         const open=!document.getElementById('ovr')?.classList.contains('hidden');
         if((curV==='access'||curV==='admin'||curV==='sessions')&&!open){const v=curV;curV='';go(v)}
@@ -5514,7 +5516,7 @@ function initControlSocket(){
     if(msg.type==='notification_update'){notifUpdate(msg.item);return}
     if(msg.type==='permissions_changed')applyPermissionsUpdate(msg);
     else if(msg.type==='force_logout')endSessionNow(msg.reason);
-    else if(msg.type==='apps_changed'||msg.type==='storage_changed'||msg.type==='users_changed'||msg.type==='server_settings_changed')
+    else if(msg.type==='apps_changed'||msg.type==='storage_changed'||msg.type==='users_changed'||msg.type==='server_settings_changed'||msg.type==='sessions_changed')
       liveRefresh(msg.type);
   };
   ws.onclose=()=>{

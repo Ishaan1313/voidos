@@ -217,7 +217,7 @@ def _current_user() -> dict | None:
                 if time.time() - match.get("last_seen_ts", 0) > 60:
                     match["last_seen_ts"] = time.time()
                     match["ip"] = _ip()
-                    _sessions_save(sessions)
+                    _sessions_save(sessions, notify=False)
         user = _get_user_by_id(uid)
         g._void_user = user
         return user

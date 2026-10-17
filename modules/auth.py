@@ -420,8 +420,14 @@ def _sessions_load() -> list:
             pass
     return []
 
-def _sessions_save(sessions: list):
+def _sessions_save(sessions: list, notify: bool = True):
     _atomic_write_json(SESSIONS_FILE, sessions)
+    if notify:      # every open Sessions page redraws (a sign-in, a sign-out, a country arriving); not for "last seen" touches
+        try:
+            from modules.web import _broadcast_coalesced
+            _broadcast_coalesced("sessions", {"type": "sessions_changed"})
+        except Exception:
+            pass
 
 def _sessions_prune(sessions: list) -> list:
     """Drop sessions past their max age so the store doesn't grow forever.
