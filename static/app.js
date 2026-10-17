@@ -4212,6 +4212,22 @@ function fvModes(box,views){
 async function fvOffice(path,name,box){
   const r=await api('/api/file/office?path='+encodeURIComponent(path));
   const d=await r.json();
+  if(r.ok&&d.kind==='render'){
+    // LibreOffice on the server draws the real thing (layout, fonts, colours) as a PDF; the first view of a file takes a few seconds.
+    const pu='/api/file/office/pdf?path='+encodeURIComponent(path);
+    const pr=await api(pu);
+    if(pr.ok){
+      box.replaceChildren();fvXl(true);
+      const f=document.createElement('iframe');f.className='fv-pdf';f.src=pu;box.appendChild(f);return;
+    }
+    return fvOfficePlain(path,name,box,null,null);
+  }
+  return fvOfficePlain(path,name,box,r,d);
+}
+async function fvOfficePlain(path,name,box,r,d){
+  if(!d){
+    r=await api('/api/file/office?plain=1&path='+encodeURIComponent(path));d=await r.json();
+  }
   box.replaceChildren();
   if(!r.ok||d.error){box.appendChild(fvEl('div','sdesc',d.error||'Couldn’t preview this file'));return}
   if(['legacy','toolarge','broken'].includes(d.kind)){

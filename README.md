@@ -371,15 +371,23 @@ video, PDFs and text open in a larger window (never bigger than 1240 px wide or
 | Pictures | fit to the window, with the pixel size shown; click to zoom to full size. Pictures over 40 MB are offered as a download instead |
 | Audio | a music player with a flowing wave that moves with the sound |
 | Video, PDF | the browser's own player and viewer |
-| PowerPoint (`.pptx`, `.ppsx`) | each slide's title, text, tables and pictures, plus speaker notes (first 150 slides) |
-| Word (`.docx`) | headings, paragraphs and tables |
-| Excel (`.xlsx`) | a tab per sheet, shown as a table (first 8 sheets, 200 rows, 26 columns each) |
+| PowerPoint, Word, Excel (and `.odp`, `.odt`, `.ods`, `.ppt`, `.doc`, `.xls`) | with **LibreOffice** installed on the server: the real layout, fonts, colours and shapes, shown like a PDF. Without it: the plain preview below |
+| PowerPoint (`.pptx`, `.ppsx`), plain preview | each slide's title, text, tables and pictures, plus speaker notes (first 150 slides) |
+| Word (`.docx`), plain preview | headings, paragraphs and tables |
+| Excel (`.xlsx`), plain preview | a tab per sheet, shown as a table (first 8 sheets, 200 rows, 26 columns each) |
 | JSON | a collapsible tree, or the formatted text |
 | CSV / TSV | a table (first 300 rows), or the raw text |
 | Markdown, code, text | rendered or highlighted; **Edit** opens the editor |
 | ZIP and other archives | the list of what's inside |
 
-Office documents are read on the server with hard limits (60 MB per file, 12 MB
+**LibreOffice rendering.** The installer adds LibreOffice by default (the `office` feature; skip it
+with `--without office`). On an existing install run
+`sudo apt install libreoffice-impress libreoffice-writer libreoffice-calc fonts-liberation`
+(or your distro's equivalent). The first time a file is opened it is converted to a PDF on the server
+(a few seconds, one at a time, 2 minutes at most, in a throwaway profile, never with macros), cached in
+`tmp/office_pdf` until the file changes (newest 30 kept). If the conversion fails the plain preview is shown.
+
+Without LibreOffice, office documents are read on the server with hard limits (60 MB per file, 12 MB
 per XML part, entity declarations refused), and only the text and pictures are
 extracted: nothing in a document is ever run. Older `.ppt`, `.doc` and `.xls`
 files can't be previewed in a browser; the window says so and offers the

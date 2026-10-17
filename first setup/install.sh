@@ -128,6 +128,8 @@ Void OS installer
                                                       default: on
             sync     (rclone continuous cloud sync)   default: on
             intercom (Bluetooth + PipeWire audio)     default: on
+            office   (LibreOffice, so PowerPoint/Word/Excel
+                      files preview with their real layout)  default: on
             mount    (let Void OS mount network shares without a
                       password — adds a sudo rule)    default: off
 
@@ -323,6 +325,11 @@ pkgs_for() {
     intercom:pacman) echo "bluez bluez-utils pipewire wireplumber portaudio" ;;
     intercom:zypper) echo "bluez pipewire pipewire-tools wireplumber" ;;
     intercom:apk) echo "bluez pipewire pipewire-tools wireplumber" ;;
+    office:apt-get) echo "libreoffice-impress libreoffice-writer libreoffice-calc fonts-liberation fonts-dejavu-core" ;;
+    office:dnf|office:yum) echo "libreoffice-impress libreoffice-writer libreoffice-calc liberation-fonts" ;;
+    office:pacman) echo "libreoffice-fresh ttf-liberation" ;;
+    office:zypper) echo "libreoffice-impress libreoffice-writer libreoffice-calc liberation-fonts" ;;
+    office:apk) echo "libreoffice font-liberation" ;;
     *) echo "" ;;
   esac
 }
@@ -387,13 +394,13 @@ if [[ $PM != brew && $PM != "" ]]; then need_root || warn "No sudo access — sk
 
 # ── features ──────────────────────────────────────────────────────────
 # Plain variables, not an associative array: macOS still ships bash 3.2.
-FEATURES="docker storage tunnel sync intercom mount"
+FEATURES="docker storage tunnel sync intercom office mount"
 feat()     { local v="F_$1"; [[ ${!v:-0} == 1 ]]; }
 feat_set() { printf -v "F_$1" '%s' "$2"; }
 # Everything is installed unless you say otherwise: the point of this installer is that nothing is
 # missing later. (The password-less mount rule is a privilege, so it stays off.)
-F_docker=1; F_storage=1; F_tunnel=1; F_sync=1; F_intercom=1; F_mount=0
-[[ $OS == Darwin ]] && { F_storage=0; F_intercom=0; F_mount=0; }
+F_docker=1; F_storage=1; F_tunnel=1; F_sync=1; F_intercom=1; F_office=1; F_mount=0
+[[ $OS == Darwin ]] && { F_storage=0; F_intercom=0; F_office=0; F_mount=0; }
 TUNNEL_ENABLE=0       # installing cloudflared never switches the public tunnel on by itself
 for spec in "$WITH:1" "$WITHOUT:0"; do
   list=${spec%:*}; val=${spec##*:}
@@ -413,6 +420,7 @@ if [[ $ASSUME_YES == 0 && -t 0 ]]; then
   q tunnel   "Cloudflare Tunnel — install it (cloudflared) so Void OS can be reached from anywhere?"
   q sync     "rclone — continuous Dropbox/Google Drive sync?"
   [[ $OS == Linux ]] && q intercom "Bluetooth audio intercom (BlueZ + PipeWire)?"
+  [[ $OS == Linux ]] && q office   "LibreOffice: show PowerPoint/Word/Excel files with their real layout (large download)?"
   if [[ $OS == Linux && $F_storage == 1 ]]; then
     printf '  %s\n' "${D}Mounting SMB/NFS shares needs root. Void OS can be allowed to run only${R}"
     printf '  %s\n' "${D}mount/umount without a password — convenient, but anyone controlling Void OS${R}"
@@ -547,6 +555,7 @@ if [[ $F_docker == 1 ]]; then any=1
   fi
 fi
 if [[ $F_storage == 1 && $OS == Linux ]]; then any=1; install_feature_pkgs storage "USB & network-share tools" || true; fi
+if [[ $F_office == 1 && $OS == Linux ]]; then any=1; install_feature_pkgs office "LibreOffice (document previews)" || true; fi
 if [[ $F_intercom == 1 && $OS == Linux ]]; then any=1
   install_feature_pkgs intercom "Bluetooth & PipeWire" || true
   [[ $HAS_SYSTEMD == 1 && $HAVE_ROOT == 1 ]] && as_root systemctl enable --now bluetooth >>"$LOG" 2>&1 || true

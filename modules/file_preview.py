@@ -10,15 +10,22 @@ server-side, and the result is plain data the page draws itself.
   GET /api/file/office?path=...             -> {"kind": "pptx"|"docx"|"xlsx", ...}
   GET /api/file/office/media?path=&name=... -> one picture from inside a presentation/document
 """
+import hashlib
 import io
+import os
 import posixpath
 import re
+import shutil
+import subprocess
+import tempfile
+import threading
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
 from flask import Response, jsonify, request
 
+from modules.config import TMP_DIR
 from modules.decorators import require_auth
 from modules.error_log import _current_user
 from modules.file_access import _safe
@@ -228,6 +235,78 @@ def _xlsx(zf) -> dict:
     return {"kind": "xlsx", "sheets": sheets, "total": len(names)}
 
 
+# ── true-to-the-original rendering ─────────────────────────────────────
+# Pulling text out of the XML (above) loses layout, fonts, colours and shapes. When LibreOffice is installed
+# the document is converted to a PDF once (cached in tmp/office_pdf, keyed by path + size + modified time) and the
+# page shows it in the same viewer as any PDF. Without LibreOffice the plain preview above is used.
+RENDER_TIMEOUT = 120
+_RENDER_EXT = {"pptx", "pptm", "ppsx", "ppt", "pps", "odp", "docx", "docm", "doc", "odt", "xlsx", "xlsm", "xls", "ods"}
+_PDF_DIR = TMP_DIR / "office_pdf"
+_render_lock = threading.Lock()        # one conversion at a time: LibreOffice is heavy
+
+
+def _soffice():
+    return shutil.which("soffice") or shutil.which("libreoffice")
+
+
+def _convert_to_pdf(src: Path):
+    """Return (pdf_path, None) or (None, reason)."""
+    exe = _soffice()
+    if not exe:
+        return None, "LibreOffice isn't installed on this server."
+    st = src.stat()
+    key = hashlib.sha256(f"{src}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:32]
+    out = _PDF_DIR / (key + ".pdf")
+    if out.is_file():
+        return out, None
+    with _render_lock:
+        if out.is_file():
+            return out, None
+        _PDF_DIR.mkdir(parents=True, exist_ok=True)
+        for old in sorted(_PDF_DIR.glob("*.pdf"), key=lambda x: x.stat().st_mtime)[:-30]:   # keep the newest 30
+            old.unlink(missing_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="job-", dir=_PDF_DIR))
+        try:
+            inp = work / ("in." + src.suffix.lstrip(".").lower())       # a plain name: nothing from the file name reaches the command
+            shutil.copyfile(src, inp)
+            env = dict(os.environ, HOME=str(work))
+            cmd = [exe, "--headless", "--norestore", "--nologo", "--nolockcheck", "--nodefault",
+                   f"-env:UserInstallation={(work / 'profile').as_uri()}",
+                   "--convert-to", "pdf", "--outdir", str(work / "out"), str(inp)]
+            try:
+                subprocess.run(cmd, cwd=str(work), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=RENDER_TIMEOUT, check=False)
+            except subprocess.TimeoutExpired:
+                return None, "Rendering took too long."
+            made = work / "out" / "in.pdf"
+            if not made.is_file() or made.stat().st_size < 100:
+                return None, "LibreOffice couldn't open this file."
+            shutil.move(str(made), str(out))
+            return out, None
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+
+@app.route("/api/file/office/pdf")
+@require_auth
+def api_file_office_pdf():
+    p, err = _open(_current_user(), request.args.get("path", ""))
+    if err:
+        return err
+    if p.suffix.lstrip(".").lower() not in _RENDER_EXT:
+        return jsonify({"error": "Not an Office document"}), 400
+    if p.stat().st_size > MAX_FILE_BYTES:
+        return jsonify({"error": "This document is too large to preview — download it to open it."}), 413
+    pdf, why = _convert_to_pdf(p)
+    if not pdf:
+        return jsonify({"error": why}), 503
+    resp = Response(pdf.read_bytes(), mimetype="application/pdf")
+    resp.headers["Cache-Control"] = "private, max-age=300"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Content-Disposition"] = "inline"
+    return resp
+
+
 def _open(user, raw):
     try:
         p = _safe(raw, user)
@@ -245,6 +324,8 @@ def api_file_office():
     if err:
         return err
     ext = p.suffix.lstrip(".").lower()
+    if ext in _RENDER_EXT and _soffice() and not request.args.get("plain") and p.stat().st_size <= MAX_FILE_BYTES:
+        return jsonify({"kind": "render", "name": p.name})       # the page then asks /api/file/office/pdf
     if ext in _LEGACY:
         return jsonify({"kind": "legacy", "format": _LEGACY[ext],
                         "note": f"Older {_LEGACY[ext]} files can't be shown in the browser. Download it to open it, "
