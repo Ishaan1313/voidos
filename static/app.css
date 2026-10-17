@@ -1,5 +1,272 @@
-/* Void OS interface styles — loaded by templates/index.html.
-   Colours come from static/css/themes.css (loaded first). */
+/* Void OS stylesheet — the one file templates/index.html loads. In order: third-party terminal/code-viewer styles (xterm.js, highlight.js, with their licences),
+   then the colour themes (the single source of colour for every screen), then the interface styles. */
+
+/* ── 1. xterm.js + highlight.js ── */
+/*! Styles for xterm.js 5.3.0 (MIT, see terminal.js) and highlight.js 11.9.0 atom-one-dark (BSD-3-Clause, see viewer.js) */
+/**
+ * Copyright (c) 2014 The xterm.js authors. All rights reserved.
+ * Copyright (c) 2012-2013, Christopher Jeffrey (MIT License)
+ * https://github.com/chjj/term.js
+ * @license MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ * Originally forked from (with the author's permission):
+ *   Fabrice Bellard's javascript vt100 for jslinux:
+ *   http://bellard.org/jslinux/
+ *   Copyright (c) 2011 Fabrice Bellard
+ *   The original design remains. The terminal itself
+ *   has been extended to include xterm CSI codes, among
+ *   other features.
+ */
+
+/**
+ *  Default styles for xterm.js
+ */
+
+.xterm {
+    cursor: text;
+    position: relative;
+    user-select: none;
+    -ms-user-select: none;
+    -webkit-user-select: none;
+}
+
+.xterm.focus,
+.xterm:focus {
+    outline: none;
+}
+
+.xterm .xterm-helpers {
+    position: absolute;
+    top: 0;
+    /**
+     * The z-index of the helpers must be higher than the canvases in order for
+     * IMEs to appear on top.
+     */
+    z-index: 5;
+}
+
+.xterm .xterm-helper-textarea {
+    padding: 0;
+    border: 0;
+    margin: 0;
+    /* Move textarea out of the screen to the far left, so that the cursor is not visible */
+    position: absolute;
+    opacity: 0;
+    left: -9999em;
+    top: 0;
+    width: 0;
+    height: 0;
+    z-index: -5;
+    /** Prevent wrapping so the IME appears against the textarea at the correct position */
+    white-space: nowrap;
+    overflow: hidden;
+    resize: none;
+}
+
+.xterm .composition-view {
+    /* TODO: Composition position got messed up somewhere */
+    background: #000;
+    color: #FFF;
+    display: none;
+    position: absolute;
+    white-space: nowrap;
+    z-index: 1;
+}
+
+.xterm .composition-view.active {
+    display: block;
+}
+
+.xterm .xterm-viewport {
+    /* On OS X this is required in order for the scroll bar to appear fully opaque */
+    background-color: #000;
+    overflow-y: scroll;
+    cursor: default;
+    position: absolute;
+    right: 0;
+    left: 0;
+    top: 0;
+    bottom: 0;
+}
+
+.xterm .xterm-screen {
+    position: relative;
+}
+
+.xterm .xterm-screen canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.xterm .xterm-scroll-area {
+    visibility: hidden;
+}
+
+.xterm-char-measure-element {
+    display: inline-block;
+    visibility: hidden;
+    position: absolute;
+    top: 0;
+    left: -9999em;
+    line-height: normal;
+}
+
+.xterm.enable-mouse-events {
+    /* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
+    cursor: default;
+}
+
+.xterm.xterm-cursor-pointer,
+.xterm .xterm-cursor-pointer {
+    cursor: pointer;
+}
+
+.xterm.column-select.focus {
+    /* Column selection mode */
+    cursor: crosshair;
+}
+
+.xterm .xterm-accessibility,
+.xterm .xterm-message {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 10;
+    color: transparent;
+    pointer-events: none;
+}
+
+.xterm .live-region {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+.xterm-dim {
+    /* Dim should not apply to background, so the opacity of the foreground color is applied
+     * explicitly in the generated class and reset to 1 here */
+    opacity: 1 !important;
+}
+
+.xterm-underline-1 { text-decoration: underline; }
+.xterm-underline-2 { text-decoration: double underline; }
+.xterm-underline-3 { text-decoration: wavy underline; }
+.xterm-underline-4 { text-decoration: dotted underline; }
+.xterm-underline-5 { text-decoration: dashed underline; }
+
+.xterm-overline {
+    text-decoration: overline;
+}
+
+.xterm-overline.xterm-underline-1 { text-decoration: overline underline; }
+.xterm-overline.xterm-underline-2 { text-decoration: overline double underline; }
+.xterm-overline.xterm-underline-3 { text-decoration: overline wavy underline; }
+.xterm-overline.xterm-underline-4 { text-decoration: overline dotted underline; }
+.xterm-overline.xterm-underline-5 { text-decoration: overline dashed underline; }
+
+.xterm-strikethrough {
+    text-decoration: line-through;
+}
+
+.xterm-screen .xterm-decoration-container .xterm-decoration {
+	z-index: 6;
+	position: absolute;
+}
+
+.xterm-screen .xterm-decoration-container .xterm-decoration.xterm-decoration-top-layer {
+	z-index: 7;
+}
+
+.xterm-decoration-overview-ruler {
+    z-index: 8;
+    position: absolute;
+    top: 0;
+    right: 0;
+    pointer-events: none;
+}
+
+.xterm-decoration-top {
+    z-index: 2;
+    position: relative;
+}
+
+pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5px}.hljs{color:#abb2bf;background:#282c34}.hljs-comment,.hljs-quote{color:#5c6370;font-style:italic}.hljs-doctag,.hljs-formula,.hljs-keyword{color:#c678dd}.hljs-deletion,.hljs-name,.hljs-section,.hljs-selector-tag,.hljs-subst{color:#e06c75}.hljs-literal{color:#56b6c2}.hljs-addition,.hljs-attribute,.hljs-meta .hljs-string,.hljs-regexp,.hljs-string{color:#98c379}.hljs-attr,.hljs-number,.hljs-selector-attr,.hljs-selector-class,.hljs-selector-pseudo,.hljs-template-variable,.hljs-type,.hljs-variable{color:#d19a66}.hljs-bullet,.hljs-link,.hljs-meta,.hljs-selector-id,.hljs-symbol,.hljs-title{color:#61aeee}.hljs-built_in,.hljs-class .hljs-title,.hljs-title.class_{color:#e6c07b}.hljs-emphasis{font-style:italic}.hljs-strong{font-weight:700}.hljs-link{text-decoration:underline}
+
+/* ── 2. colour themes ── */
+/* Void OS colour themes — the single source of truth, shared by every page
+   (templates/index.html). Each theme defines the
+   same tokens; components must use these variables, never literal colours,
+   so every theme renders every screen consistently:
+     --bg / --bg-rgb      page background      --sf / --sf2 / --deep  surfaces
+     --bd / --bd2         borders (quiet/strong)
+     --pu / --pu-rgb      accent   --ps light accent   --pd dark accent
+     --tx / --td / --tm   text: primary / secondary / muted
+     --gr --rd --yw --bl  status: success / danger / warning / info (+ -rgb)
+     --ov-rgb             overlay tint (white on dark themes, ink on light)
+     --on-pu              text/icons placed ON the accent colour
+     --on-rd              text/icons placed ON the danger colour
+     --pg                 end of the accent gradient (kept dark enough for --on-pu text) */
+:root,[data-theme="horizon"]{--bg:#0b1220;--bg-rgb:11,18,32;--sf:rgba(17,27,46,.82);--sf2:#152438;--deep:#080e1a;
+  --bd:rgba(56,189,248,.14);--bd2:rgba(56,189,248,.28);
+  --pu:#1fb6ff;--pu-rgb:31,182,255;--ps:#6fdcff;--pd:#0d6fa8;--pg:#6fdcff;
+  --tx:#eef6ff;--td:#8fa2b8;--tm:#8397ab;
+  --gr:#34e2a6;--gr-rgb:52,226,166;--rd:#ff5c7a;--rd-rgb:255,92,122;
+  --yw:#ffcb57;--yw-rgb:255,203,87;--bl:#38bdf8;--bl-rgb:56,189,248;
+  --ov-rgb:255,255,255;
+  --r:18px;--rs:12px;--sb:72px;--on-pu:#04203a;--on-rd:#2a0710}
+[data-theme="void"]{--bg:#0a0a12;--bg-rgb:10,10,18;--sf:rgba(18,16,28,.9);--sf2:#1c1929;--deep:#0d0b18;
+  --bd:rgba(155,133,255,.13);--bd2:rgba(155,133,255,.24);
+  --pu:#6d4aff;--pu-rgb:109,74,255;--ps:#9b85ff;--pd:#4a3aa8;--pg:#7656ff;
+  --tx:#f3f1fb;--td:#9a95a8;--tm:#9690a6;
+  --gr:#5fe3a6;--gr-rgb:95,227,166;--rd:#ff5c7a;--rd-rgb:255,92,122;
+  --yw:#ffd166;--yw-rgb:255,209,102;--bl:#5bc4ff;--bl-rgb:91,196,255;
+  --ov-rgb:255,255,255;--on-pu:#ffffff;--on-rd:#2a0710}
+[data-theme="emerald"]{--bg:#050d0c;--bg-rgb:5,13,12;--sf:rgba(12,26,24,.9);--sf2:#102420;--deep:#081714;
+  --bd:rgba(74,222,168,.13);--bd2:rgba(74,222,168,.24);
+  --pu:#18a976;--pu-rgb:24,169,118;--ps:#4eeab0;--pd:#0d5c40;--pg:#4eeab0;
+  --tx:#eafaf3;--td:#84ab9d;--tm:#789b8d;
+  --gr:#6fe3a0;--gr-rgb:111,227,160;--rd:#ff6b7a;--rd-rgb:255,107,122;
+  --yw:#ffd166;--yw-rgb:255,209,102;--bl:#5bc4ff;--bl-rgb:91,196,255;
+  --ov-rgb:255,255,255;--on-pu:#03241a;--on-rd:#2a0710}
+[data-theme="crimson"]{--bg:#0f0708;--bg-rgb:15,7,8;--sf:rgba(28,15,16,.9);--sf2:#241214;--deep:#160b0c;
+  --bd:rgba(255,107,107,.13);--bd2:rgba(255,107,107,.24);
+  --pu:#d92b3f;--pu-rgb:217,43,63;--ps:#ff6f6f;--pd:#7a1620;--pg:#dd3244;
+  --tx:#fdf1ef;--td:#a98f90;--tm:#a58d8e;
+  --gr:#5fe3a6;--gr-rgb:95,227,166;--rd:#ff8a5c;--rd-rgb:255,138,92;
+  --yw:#ffd166;--yw-rgb:255,209,102;--bl:#5bc4ff;--bl-rgb:91,196,255;
+  --ov-rgb:255,255,255;--on-pu:#ffffff;--on-rd:#2a0710}
+[data-theme="light"]{--bg:#f4f3fa;--bg-rgb:244,243,250;--sf:rgba(255,255,255,.85);--sf2:#ffffff;--deep:#ffffff;
+  --bd:rgba(109,74,255,.16);--bd2:rgba(109,74,255,.28);
+  --pu:#6d4aff;--pu-rgb:109,74,255;--ps:#5636e0;--pd:#7c62f0;--pg:#5636e0;
+  --tx:#1c1830;--td:#585268;--tm:#6a6080;
+  --gr:#126a42;--gr-rgb:18,106,66;--rd:#ac1b34;--rd-rgb:172,27,52;
+  --yw:#7e520d;--yw-rgb:126,82,13;--bl:#1f5fa3;--bl-rgb:31,95,163;
+  --ov-rgb:20,18,30;--on-pu:#ffffff;--on-rd:#ffffff}
+
+/* ── 3. interface ── */
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--bg);color:var(--tx);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;

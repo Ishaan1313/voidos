@@ -1419,7 +1419,7 @@ app_catalog.zip             the App Store catalog, extracted to app_catalog/ on 
 
 modules/                    the server, one feature per file (modules/__init__.py lists each file's job)
 templates/                  index.html (the app, sign-in and setup pages), share.html, 404.html
-static/                     app.js, app.css, service worker, themes (css/themes.css),
+static/                     app.js, app.css (styles and themes in one file), service worker,
                             fonts/, vendor/ (terminal, viewer), file-icons/
 
 first setup/                the installers (install.sh for Linux/Pi/macOS, install.ps1 for Windows,
