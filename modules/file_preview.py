@@ -246,7 +246,16 @@ _render_lock = threading.Lock()        # one conversion at a time: LibreOffice i
 
 
 def _soffice():
-    return shutil.which("soffice") or shutil.which("libreoffice")
+    """LibreOffice's command, or None. Windows and macOS installs don't put it on PATH."""
+    found = shutil.which("soffice") or shutil.which("libreoffice")
+    if found:
+        return found
+    for cand in (os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "LibreOffice", "program", "soffice.exe"),
+                 os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "LibreOffice", "program", "soffice.exe"),
+                 "/Applications/LibreOffice.app/Contents/MacOS/soffice"):
+        if os.path.isfile(cand):
+            return cand
+    return None
 
 
 def _convert_to_pdf(src: Path):
@@ -324,9 +333,8 @@ def api_file_office():
     if err:
         return err
     ext = p.suffix.lstrip(".").lower()
-    lo = bool(_soffice())
-    if ext in _LEGACY and lo and p.stat().st_size <= MAX_FILE_BYTES:
-        return jsonify({"kind": "render", "name": p.name, "lo": True})   # only LibreOffice can open the old formats
+    if ext in _RENDER_EXT and _soffice() and not request.args.get("plain") and p.stat().st_size <= MAX_FILE_BYTES:
+        return jsonify({"kind": "render", "name": p.name})       # the page then asks /api/file/office/pdf
     if ext in _LEGACY:
         return jsonify({"kind": "legacy", "format": _LEGACY[ext],
                         "note": f"Older {_LEGACY[ext]} files can't be shown in the browser. Download it to open it, "
@@ -345,25 +353,7 @@ def api_file_office():
         return jsonify({"kind": "broken", "note": "This document couldn't be read — it may be damaged, "
                                                    "password-protected or not really an Office file."})
     out["name"] = p.name
-    out["lo"] = lo                  # true: the page may also offer the exact LibreOffice rendering
     return jsonify(out)
-
-
-@app.route("/api/file/office/raw")
-@require_auth
-def api_file_office_raw():
-    """The document's own bytes, for the in-browser renderers (modern formats only, size-limited)."""
-    p, err = _open(_current_user(), request.args.get("path", ""))
-    if err:
-        return err
-    if p.suffix.lstrip(".").lower() not in _KIND:
-        return jsonify({"error": "Not an Office document"}), 400
-    if p.stat().st_size > MAX_FILE_BYTES:
-        return jsonify({"error": "This document is too large to preview — download it to open it."}), 413
-    resp = Response(p.read_bytes(), mimetype="application/octet-stream")
-    resp.headers["Cache-Control"] = "private, max-age=60"
-    resp.headers["X-Content-Type-Options"] = "nosniff"
-    return resp
 
 
 @app.route("/api/file/office/media")

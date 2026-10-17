@@ -4209,79 +4209,23 @@ function fvModes(box,views){
 }
 
 // Office documents: the server pulls out the text (bounded), the page draws it.
-// Office documents. Three ways to see one, offered as buttons:
-//   Formatted  drawn in this browser (PowerPoint, Word) from the file's own bytes; nothing to install
-//   Exact      the server's LibreOffice makes a PDF (only when LibreOffice is installed there)
-//   Text       just the words and pictures, read by the server
-// The best available one opens first, and a failure falls through to the next.
-const FV_SCRIPTS={};
-function fvScript(src){
-  return FV_SCRIPTS[src]||(FV_SCRIPTS[src]=new Promise((ok,no)=>{
-    const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>{delete FV_SCRIPTS[src];no(new Error('load '+src))};document.head.appendChild(s)}));
-}
-async function fvOfficeBytes(path){
-  const r=await api('/api/file/office/raw?path='+encodeURIComponent(path));
-  if(!r.ok)throw new Error('raw');
-  return r.arrayBuffer();
-}
-async function fvOfficeFormatted(path,ext,holder){
-  holder.replaceChildren();
-  const buf=await fvOfficeBytes(path);
-  if(['pptx','pptm','ppsx'].includes(ext)){
-    await fvScript('/static/vendor/pptx-preview.js');
-    const wrap=fvEl('div','fv-pptx');holder.appendChild(wrap);
-    const w=Math.max(320,Math.min(960,holder.clientWidth-8||960));
-    const pv=window.pptxPreview.init(wrap,{width:w,height:Math.round(w*9/16),mode:'list'});
-    await pv.preview(buf);
-    if(!wrap.querySelector('canvas,svg,img,div div'))throw new Error('empty');
-  }else{
-    await fvScript('/static/vendor/jszip.min.js');await fvScript('/static/vendor/docx-preview.min.js');
-    const wrap=fvEl('div','fv-docx');holder.appendChild(wrap);
-    await window.docx.renderAsync(buf,wrap,null,{inWrapper:true,ignoreWidth:false,breakPages:true,useBase64URL:true});
-  }
-}
-async function fvOfficeExact(path,holder){
-  holder.replaceChildren(fvEl('div','sdesc','Rendering with LibreOffice\u2026 the first time takes a few seconds.'));
-  const pu='/api/file/office/pdf?path='+encodeURIComponent(path);
-  const pr=await api(pu);
-  if(!pr.ok)throw new Error('pdf');
-  holder.replaceChildren();
-  const f=document.createElement('iframe');f.className='fv-pdf';f.src=pu;holder.appendChild(f);
-}
+// Office documents: LibreOffice on the server draws the real thing (layout, fonts, colours) as a PDF; the first view of a file
+// takes a few seconds. Without LibreOffice (or if it can't open the file) the server reads out the text and pictures instead.
 async function fvOffice(path,name,box){
-  const ext=(name.includes('.')?name.split('.').pop():'').toLowerCase();
   const r=await api('/api/file/office?path='+encodeURIComponent(path));
   const d=await r.json();
-  if(r.ok&&d.kind==='render'){                // an old format (.ppt/.doc/.xls/.odp...): LibreOffice or nothing
-    box.replaceChildren();fvXl(true);const h=fvEl('div');box.appendChild(h);
-    try{await fvOfficeExact(path,h)}catch(_){h.replaceChildren(fvEl('div','fv-note','This file couldn\u2019t be shown. Download it to open it.'))}
-    return;
-  }
-  if(!r.ok||d.error||['legacy','toolarge','broken'].includes(d.kind))return fvOfficePlain(path,name,box,r,d);
-  const canFmt=['pptx','pptm','ppsx','docx','docm'].includes(ext);
-  const modes=[];
-  if(d.lo)modes.push(['exact','Exact']);
-  if(canFmt)modes.push(['fmt','Formatted']);
-  modes.push(['text','Text']);
-  if(modes.length===1)return fvOfficePlain(path,name,box,r,d);
-  box.replaceChildren();fvXl(true);
-  const bar=fvEl('div','fv-modes'),holder=fvEl('div','fv-office');box.appendChild(bar);box.appendChild(holder);
-  let token=0;
-  const show=async i=>{
-    const my=++token;[...bar.children].forEach((b,j)=>b.classList.toggle('on',j===i));
-    const m=modes[i][0];
-    try{
-      if(m==='exact')await fvOfficeExact(path,holder);
-      else if(m==='fmt')await fvOfficeFormatted(path,ext,holder);
-      else{holder.replaceChildren();await fvOfficePlain(path,name,holder,r,d)}
-    }catch(_){
-      if(my!==token)return;
-      if(i+1<modes.length)return show(i+1);                       // fall through to the next way of showing it
-      holder.replaceChildren(fvEl('div','fv-note','This file couldn\u2019t be shown. Download it to open it.'));
+  if(r.ok&&d.kind==='render'){
+    const pu='/api/file/office/pdf?path='+encodeURIComponent(path);
+    box.replaceChildren(fvEl('div','sdesc','Rendering with LibreOffice\u2026 the first time takes a few seconds.'));fvXl(true);
+    const pr=await api(pu);
+    if(pr.ok){
+      box.replaceChildren();
+      const f=document.createElement('iframe');f.className='fv-pdf';f.src=pu;box.appendChild(f);return;
     }
-  };
-  modes.forEach(([_,label],i)=>{const b=fvEl('button','fv-mode',label);b.type='button';b.onclick=()=>show(i);bar.appendChild(b)});
-  show(0);
+    const r2=await api('/api/file/office?plain=1&path='+encodeURIComponent(path));
+    return fvOfficePlain(path,name,box,r2,await r2.json());
+  }
+  return fvOfficePlain(path,name,box,r,d);
 }
 async function fvOfficePlain(path,name,box,r,d){
   box.replaceChildren();

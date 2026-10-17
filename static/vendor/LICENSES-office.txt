@@ -1,4 +1,0 @@
-Bundled in this folder for the Office file viewer:
-pptx-preview 1.0.7 (ISC)       pptx-preview.js
-docx-preview 0.4.1 (Apache-2.0) docx-preview.min.js
-JSZip 3.10.1 (MIT)              jszip.min.js

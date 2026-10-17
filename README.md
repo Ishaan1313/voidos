@@ -371,24 +371,21 @@ video, PDFs and text open in a larger window (never bigger than 1240 px wide or
 | Pictures | fit to the window, with the pixel size shown; click to zoom to full size. Pictures over 40 MB are offered as a download instead |
 | Audio | a music player with a flowing wave that moves with the sound |
 | Video, PDF | the browser's own player and viewer |
-| PowerPoint (`.pptx`, `.ppsx`), Word (`.docx`) | **Formatted**: drawn in your browser with the real layout, fonts, colours and shapes. Nothing to install |
-| Any Office file, with LibreOffice on the server | **Exact**: LibreOffice makes a PDF, so even complex charts and SmartArt match. Also opens `.ppt`, `.doc`, `.xls`, `.odp`, `.odt`, `.ods` |
-| Any Office file | **Text**: the words, tables and pictures only (PowerPoint: first 150 slides; Excel: a tab per sheet, 8 sheets, 200 rows, 26 columns) |
+| PowerPoint, Word, Excel, OpenDocument (`.pptx`, `.ppt`, `.docx`, `.doc`, `.xlsx`, `.xls`, `.odp`, `.odt`, `.ods`) | with **LibreOffice** on the server: the real layout, fonts, colours and shapes, shown like a PDF. Without it, or if it can't open the file: the words, tables and pictures only (PowerPoint: first 150 slides; Excel: a tab per sheet, 8 sheets, 200 rows, 26 columns) |
 | JSON | a collapsible tree, or the formatted text |
 | CSV / TSV | a table (first 300 rows), or the raw text |
 | Markdown, code, text | rendered or highlighted; **Edit** opens the editor |
 | ZIP and other archives | the list of what's inside |
 
-**Three ways to view an Office file.** Buttons above the document switch between them; the best
-available one opens first and a failure falls through to the next. *Formatted* needs nothing on the server
-(the renderers are bundled in `static/vendor`: pptx-preview, docx-preview and JSZip). *Exact* needs
-LibreOffice: the installer offers it (`--with office`, off by default). On an existing install run
+**LibreOffice previews.** The installer adds LibreOffice by default (Linux: the `office` feature, skip it
+with `--without office`; Windows: `-Without office`, installed with winget; on macOS install it yourself).
+On an existing Linux install run
 `sudo apt install --no-install-recommends libreoffice-impress libreoffice-writer libreoffice-calc fonts-liberation`
 (or your distro's equivalent). The first open of a file is converted to a PDF on the server (a few seconds,
 one at a time, 2 minutes at most, in a throwaway profile, never with macros) and cached in `tmp/office_pdf`
-until the file changes (newest 30 kept). Excel opens as *Text* (tables) or *Exact*.
+until the file changes (newest 30 kept).
 
-For *Text*, office documents are read on the server with hard limits (60 MB per file, 12 MB
+For the fallback, office documents are read on the server with hard limits (60 MB per file, 12 MB
 per XML part, entity declarations refused), and only the text and pictures are
 extracted: nothing in a document is ever run. Without LibreOffice, older `.ppt`, `.doc` and `.xls`
 files can't be previewed; the window says so and offers the

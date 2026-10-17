@@ -126,6 +126,7 @@ Void OS installer for Windows
   Features: tunnel    Cloudflare Tunnel - reach Void OS from anywhere   (winget)
             sync      rclone - continuous Dropbox/Google Drive sync     (winget)
             docker    Docker Desktop - App Store & Containers           (winget, large)
+            office    LibreOffice - PowerPoint/Word/Excel previews      (winget, large)
             defender  Exclude Void OS's tmp folder from Defender scans  (admin)
             firewall  Allow other devices on your network to connect    (admin)
             devmode   Developer Mode - needed to mount SMB shares       (admin)
@@ -404,9 +405,10 @@ $HasWinget = Has-Command 'winget'
 if ($HasWinget) { Info 'Packages  winget' } else { Warn 'winget not found — optional tools will need installing by hand (get "App Installer" from the Microsoft Store)' }
 
 # ── features ───────────────────────────────────────────────────────────
-$FeatureNames = @('tunnel','sync','docker','defender','firewall','devmode','nfs')
+$FeatureNames = @('tunnel','sync','docker','office','defender','firewall','devmode','nfs')
 $Feat = @{
   tunnel = (Has-Command 'cloudflared'); sync = (Has-Command 'rclone'); docker = (Has-Command 'docker')
+  office = $true
   defender = $true; firewall = $true; devmode = $false; nfs = $false
 }
 foreach ($pair in @(@($With, $true), @($Without, $false))) {
@@ -421,6 +423,7 @@ if (-not $Yes) {
   Out-Line "  ${cBold}Optional features$cReset ${cDim}— Void OS works without any of these; you can re-run this later.$cReset" 'White'
   $Feat.tunnel   = Ask-YesNo 'Cloudflare Tunnel — reach Void OS from anywhere?' $Feat.tunnel
   $Feat.sync     = Ask-YesNo 'rclone — continuous Dropbox/Google Drive sync?' $Feat.sync
+  $Feat.office   = Ask-YesNo 'LibreOffice — preview PowerPoint/Word/Excel files with their real layout? (large download)' $Feat.office
   $Feat.docker   = Ask-YesNo 'Docker Desktop — App Store & Containers? (large download, needs WSL 2)' $Feat.docker
   $Feat.defender = Ask-YesNo "Exclude Void OS's tmp folder from Defender scans? (faster uploads; admin)" $Feat.defender
   $Feat.firewall = Ask-YesNo 'Let other devices on your home network connect? (admin)' $Feat.firewall
@@ -527,6 +530,11 @@ if ($Feat.sync)   { $anyTool = $true; Install-Winget 'rclone' 'Rclone.Rclone' 'r
 if ($Feat.docker) { $anyTool = $true
   Install-Winget 'Docker Desktop' 'Docker.DockerDesktop' 'docker'
   if (-not (Has-Command 'docker')) { Info 'Docker Desktop may need a restart and WSL 2 (it will guide you) — then start it once' }
+}
+if ($Feat.office) { $anyTool = $true
+  # LibreOffice doesn't put itself on PATH; Void OS also looks in Program Files
+  if ((Has-Command 'soffice') -or (Test-Path "$env:ProgramFiles\LibreOffice\program\soffice.exe") -or (Test-Path "${env:ProgramFiles(x86)}\LibreOffice\program\soffice.exe")) { Ok 'LibreOffice already installed' }
+  else { Install-Winget 'LibreOffice' 'TheDocumentFoundation.LibreOffice' 'soffice' }
 }
 if (-not $anyTool) { Info 'No optional tools selected' }
 

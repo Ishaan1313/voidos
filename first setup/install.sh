@@ -128,9 +128,8 @@ Void OS installer
                                                       default: on
             sync     (rclone continuous cloud sync)   default: on
             intercom (Bluetooth + PipeWire audio)     default: on
-            office   (LibreOffice, for pixel-exact PowerPoint/Word/
-                      Excel previews; they already preview
-                      in the browser without it)         default: off
+            office   (LibreOffice: PowerPoint/Word/Excel previews
+                      with their real layout)           default: on
             mount    (let Void OS mount network shares without a
                       password — adds a sudo rule)    default: off
 
@@ -400,7 +399,7 @@ feat()     { local v="F_$1"; [[ ${!v:-0} == 1 ]]; }
 feat_set() { printf -v "F_$1" '%s' "$2"; }
 # Everything is installed unless you say otherwise: the point of this installer is that nothing is
 # missing later. (The password-less mount rule is a privilege, so it stays off.)
-F_docker=1; F_storage=1; F_tunnel=1; F_sync=1; F_intercom=1; F_office=0; F_mount=0
+F_docker=1; F_storage=1; F_tunnel=1; F_sync=1; F_intercom=1; F_office=1; F_mount=0
 [[ $OS == Darwin ]] && { F_storage=0; F_intercom=0; F_office=0; F_mount=0; }
 TUNNEL_ENABLE=0       # installing cloudflared never switches the public tunnel on by itself
 for spec in "$WITH:1" "$WITHOUT:0"; do
@@ -421,7 +420,7 @@ if [[ $ASSUME_YES == 0 && -t 0 ]]; then
   q tunnel   "Cloudflare Tunnel — install it (cloudflared) so Void OS can be reached from anywhere?"
   q sync     "rclone — continuous Dropbox/Google Drive sync?"
   [[ $OS == Linux ]] && q intercom "Bluetooth audio intercom (BlueZ + PipeWire)?"
-  [[ $OS == Linux ]] && q office   "LibreOffice for pixel-exact Office previews (about 150-400 MB; previews already work without it)?"
+  [[ $OS == Linux ]] && q office   "LibreOffice — preview PowerPoint/Word/Excel files with their real layout (about 150-400 MB)?"
   if [[ $OS == Linux && $F_storage == 1 ]]; then
     printf '  %s\n' "${D}Mounting SMB/NFS shares needs root. Void OS can be allowed to run only${R}"
     printf '  %s\n' "${D}mount/umount without a password — convenient, but anyone controlling Void OS${R}"
