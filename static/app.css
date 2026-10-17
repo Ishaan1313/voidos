@@ -2014,3 +2014,8 @@ code,pre,kbd,.path,.toast-ref,.notif-time code,.ip-spoiler-text,.mono{font-famil
 
 /* A tile with a status badge (Live, Reconnecting…) keeps room for it below the description instead of the badge sitting on top */
 .tile:has(.tstatus),.dash-apps .tile.card:has(.tstatus),.shell.hs .tile:has(.tstatus),.shell.hs #hsSysGrid .tile:has(.tstatus){padding-bottom:32px}
+.vlogo{display:block;flex:none;border-radius:22%}
+.vwordmark{display:block;color:var(--tx);overflow:visible}
+.set-logo{margin-left:auto;flex:none;opacity:.95}
+.set-logo-name{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:-.02em}
+@media(max-width:700px){.set-logo{display:none}}

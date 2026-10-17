@@ -7,6 +7,25 @@
 <title>{{ os_name }}</title>
 <link rel="icon" type="image/x-icon" href="/static/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="32x32" href="/static/logo-32.png"/>
+<link rel="icon" type="image/svg+xml" sizes="any" href="/static/logo.svg" id="vlFav"/>
+<script>
+// The tab icon follows the theme: the same logo, redrawn in the current accent colour.
+(function(){
+  var link=document.getElementById('vlFav'),last='';
+  function paint(){
+    try{
+      var c=getComputedStyle(document.documentElement).getPropertyValue('--pu').trim();
+      if(!c||c===last||!/^#[0-9a-f]{3,8}$|^rgb|^hsl/i.test(c))return;last=c;
+      fetch('/static/logo.svg').then(function(r){return r.text()}).then(function(s){
+        link.href='data:image/svg+xml,'+encodeURIComponent(s.split('#6d4aff').join(c));
+      });
+    }catch(e){}
+  }
+  document.addEventListener('DOMContentLoaded',paint);
+  new MutationObserver(paint).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme','style','class']});
+  setInterval(paint,4000);
+})();
+</script>
 <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png"/>
 <link rel="manifest" href="/manifest.json"/>
 <meta name="theme-color" content="#0b1220"/>
@@ -19,6 +38,7 @@
 <link rel="stylesheet" href="/static/app.css?v={{ asset_v('app.css') }}">
 </head>
 <body>
+{% include "_logo_sprite.html" %}
 <div class="blobs"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
 <div id="toasts" aria-live="polite" aria-atomic="true"></div>
 <svg width="0" height="0" style="position:absolute">
@@ -33,7 +53,7 @@
 <div class="login-wrap">
   <div class="lcard" id="lcard">
     <div class="lock-wrap">
-      <img src="/static/logo-128.png" width="64" height="64" alt="" style="border-radius:18px;display:block"/>
+      <svg class="vlogo" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><use href="#vl-icon"/></svg>
     </div>
     <div class="ltitle">{{ os_name }}</div>
     <div class="lsub">Home Server Dashboard</div>
@@ -59,7 +79,7 @@
 <div class="login-wrap">
   <div class="lcard" id="scard" style="max-width:400px">
     <div class="lock-wrap">
-      <img src="/static/logo-128.png" width="64" height="64" alt="" style="border-radius:18px;display:block"/>
+      <svg class="vlogo" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><use href="#vl-icon"/></svg>
     </div>
     <div class="ltitle">Welcome to {{ os_name }}</div>
     <div class="lsub">Let's create your admin account to get started</div>
@@ -84,7 +104,7 @@
 <div class="login-wrap">
   <div class="lcard onboard-card" id="obCard">
     <div class="lock-wrap">
-      <img src="/static/logo-128.png" width="56" height="56" alt="" style="border-radius:16px;display:block"/>
+      <svg class="vlogo" width="56" height="56" viewBox="0 0 64 64" aria-hidden="true"><use href="#vl-icon"/></svg>
     </div>
     <div class="ltitle">Set up {{ os_name }}</div>
     <div class="lsub">A few optional steps to configure your server — everything here can also be changed later in Settings</div>
@@ -111,14 +131,14 @@
     <span class="navtoggle__line navtoggle__line--center"></span>
     <span class="navtoggle__line navtoggle__line--bottom"></span>
   </button>
-  <img src="/static/logo-64.png" width="26" height="26" alt="" style="border-radius:7px"/>
+  <svg class="vlogo" width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><use href="#vl-icon"/></svg>
   <span class="mobile-topbar-name">{{ os_name }}</span>
 </div>
 <div class="shell">
   <nav class="sidebar" id="sb">
     <a href="/" class="sb-logo">
       <div class="sb-logo-icon">
-        <img src="/static/logo-64.png" width="36" height="36" alt="" style="border-radius:9px;display:block"/>
+        <svg class="vlogo" width="36" height="36" viewBox="0 0 64 64" aria-hidden="true"><use href="#vl-icon"/></svg>
       </div>
       <span class="sb-logo-name">{{ os_name }}</span>
       <button class="navtoggle" id="navToggle" type="button" aria-label="Pin sidebar open" title="Pin sidebar open" onclick="event.preventDefault()">

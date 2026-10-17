@@ -1628,7 +1628,7 @@ function ensureHsTopbar(){
     <button class="hs-ibtn" id="hsLaunchBtn" title="All apps" aria-label="All apps">
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
     <button class="hs-home-btn" id="hsHomeBtn" title="Home">
-      <img src="/static/logo-64.png" width="26" height="26" alt="" style="border-radius:7px;display:block"/>
+      <svg class="vlogo" width="26" height="26" viewBox="0 0 64 64" aria-hidden="true"><use href="#vl-icon"/></svg>
       <span>${esc(OSNAME)}</span>
     </button>
     <div class="hs-crumb" id="hsCrumb"></div>
@@ -7078,7 +7078,9 @@ function rSettings(){
   const _page=(id,title,sub,body)=>`<section class="set-page${_setPage===id?' active':''}" id="setp-${id}" data-page="${id}">
       <div class="set-ph"><h2>${title}</h2><p>${sub}</p></div>${body}</section>`;
   document.getElementById('vroot').innerHTML=`
-  <div class="vh"><div><div class="vtitle">Settings</div><div class="vsub">Your account, how Void OS looks${IS_ADMIN?', and how the server is set up':''}</div></div></div>
+  <div class="vh"><div><div class="vtitle">Settings</div><div class="vsub">Your account, how Void OS looks${IS_ADMIN?', and how the server is set up':''}</div></div>
+    ${OSNAME==='Void OS'?'<svg class="vwordmark set-logo" width="130" height="52" viewBox="-4 -4 120 48" role="img" aria-label="Void OS"><use href="#vl-word"/></svg>'
+      :`<div class="set-logo set-logo-name"><svg class="vlogo" width="30" height="30" viewBox="0 0 64 64" aria-hidden="true"><use href="#vl-icon"/></svg><span>${esc(OSNAME)}</span></div>`}</div>
   <div class="set-shell">
     <nav class="set-nav" id="setNav" aria-label="Settings sections">
       <div class="set-nav-grp">Your account</div>
