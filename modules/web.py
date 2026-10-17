@@ -478,18 +478,8 @@ def _unhandled(e):
 def not_found(_):
     if request.path.startswith("/api/"):
         return jsonify({"error": "Not found"}), 404
-    # Signed-in visitors see the 404 in their own colour theme; everyone else
-    # gets Void, the page's original look. Themes come from static/css/themes.css.
-    theme = "void"
-    try:
-        u = _current_user()
-        if u:
-            theme = _get_user_settings(u).get("theme") or "void"
-    except Exception:
-        pass
-    if not re.fullmatch(r"[a-z]{2,20}", str(theme)):
-        theme = "void"
-    return render_template("404.html", theme=theme), 404
+    # The 404 page is always the purple Void OS look (it carries its own colours).
+    return render_template("404.html"), 404
 
 
 def _bind_later_modules():

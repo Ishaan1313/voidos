@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="{{ theme or 'void' }}">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,19 +7,22 @@
 <title>404 - Page not found</title>
 <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
 <link rel="shortcut icon" href="/static/favicon.ico" />
-<!-- Colours come from the shared theme file, so this page always matches the visitor's chosen theme. -->
-<link rel="stylesheet" href="/static/css/themes.css">
 <script>document.documentElement.classList.add('js')</script>
 <style>
 @font-face { font-family: "Sora"; src: url("/static/fonts/sora-latin.woff2") format("woff2-variations"), url("/static/fonts/sora-latin.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
 @font-face { font-family: "JetBrains Mono"; src: url("/static/fonts/jetbrains-mono-latin.woff2") format("woff2-variations"), url("/static/fonts/jetbrains-mono-latin.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
+
+/* This page is always the purple Void OS look, and carries its own colours, so it renders properly even when it is
+   opened on its own or the stylesheet isn't reachable. */
+:root { --bg:#0a0a12; --bg-rgb:10,10,18; --pu:#6d4aff; --pu-rgb:109,74,255; --ps:#9b85ff; --pd:#4a3aa8;
+        --tx:#f3f1fb; --td:#9a95a8; --tm:#9690a6; }
 
 * { padding: 0; margin: 0; box-sizing: border-box; }
 html, body { min-height: 100%; }
 body {
   background: var(--bg);
   color: var(--tx);
-  font-family: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "Sora", "Segoe UI", system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
   min-height: 100vh; min-height: 100dvh;
   display: flex; align-items: center; justify-content: center;
@@ -29,7 +32,6 @@ body {
 /* Ambient light: soft glows that drift (transform-only, off for reduced motion). */
 .blobs { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
 .blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .3; will-change: transform; }
-:root[data-theme="light"] .blob { opacity: .22; }
 .b1 { width: 500px; height: 500px; background: radial-gradient(circle, var(--pu), transparent 70%); top: -14%; left: -10%; animation: d1 26s ease-in-out infinite alternate; }
 .b2 { width: 420px; height: 420px; background: radial-gradient(circle, var(--ps), transparent 70%); bottom: -16%; right: -8%; animation: d2 32s ease-in-out infinite alternate; }
 .b3 { width: 300px; height: 300px; background: radial-gradient(circle, var(--pd), transparent 70%); top: 40%; left: 58%; animation: d3 38s ease-in-out infinite alternate; }
