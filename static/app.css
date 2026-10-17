@@ -1985,3 +1985,10 @@ code,pre,kbd,.path,.toast-ref,.notif-time code,.ip-spoiler-text,.mono{font-famil
 .fs-item:hover .fs-hide,.fs-hide:focus-visible{opacity:1}
 .fs-hide:hover{background:rgba(var(--ov-rgb),.1);color:var(--tx)}
 @media(hover:none){.fs-hide{opacity:.7}}
+
+/* Office files drawn in the browser (PowerPoint / Word) */
+.fv-office{min-height:120px}
+.fv-pptx,.fv-docx{max-height:72vh;overflow:auto;border-radius:8px;background:rgba(var(--ov-rgb),.05);padding:8px}
+.fv-pptx>div{margin:0 auto 14px;box-shadow:0 2px 12px rgba(0,0,0,.35);border-radius:4px;overflow:hidden}
+.fv-docx .docx-wrapper{background:transparent!important;padding:0!important}
+.fv-docx .docx-wrapper>section.docx{margin:0 auto 14px!important;box-shadow:0 2px 12px rgba(0,0,0,.35)}
