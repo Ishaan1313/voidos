@@ -1,290 +1,138 @@
 <!doctype html>
 <html lang="en" data-theme="{{ theme or 'void' }}">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-        <meta name="robots" content="noindex">
-        <title>404 - Not Found</title>
-        <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
-        <link rel="shortcut icon" href="/static/favicon.ico" />
-        <!-- Colours come from the shared theme file, so this page always
-             matches the visitor's chosen theme. -->
-        <link rel="stylesheet" href="/static/css/themes.css">
-        <script>document.documentElement.classList.add('js')</script>
-        <style>
-            /* Bevan is bundled (static/fonts, SIL OFL). The original page
-               imported it from Google Fonts, which Void OS's Content-Security-
-               Policy blocks, so it never actually loaded until now. */
-            @font-face {
-                font-family: "Bevan";
-                src: url("/static/fonts/bevan-latin.woff2") format("woff2");
-                font-weight: 400;
-                font-display: swap;
-            }
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>404 - Page not found</title>
+<link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
+<link rel="shortcut icon" href="/static/favicon.ico" />
+<!-- Colours come from the shared theme file, so this page always matches the visitor's chosen theme. -->
+<link rel="stylesheet" href="/static/css/themes.css">
+<script>document.documentElement.classList.add('js')</script>
+<style>
+@font-face { font-family: "Sora"; src: url("/static/fonts/sora-latin.woff2") format("woff2-variations"), url("/static/fonts/sora-latin.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("/static/fonts/jetbrains-mono-latin.woff2") format("woff2-variations"), url("/static/fonts/jetbrains-mono-latin.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
 
-            @font-face {
-                font-family: "JetBrains Mono";
-                src: url("/static/fonts/jetbrains-mono-latin.woff2") format("woff2-variations"),
-                     url("/static/fonts/jetbrains-mono-latin.woff2") format("woff2");
-                font-weight: 100 800;
-                font-display: swap;
-            }
+* { padding: 0; margin: 0; box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--tx);
+  font-family: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+}
 
-            * { padding: 0; margin: 0; box-sizing: border-box; }
+/* Ambient light: soft glows that drift (transform-only, off for reduced motion). */
+.blobs { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .3; will-change: transform; }
+:root[data-theme="light"] .blob { opacity: .22; }
+.b1 { width: 500px; height: 500px; background: radial-gradient(circle, var(--pu), transparent 70%); top: -14%; left: -10%; animation: d1 26s ease-in-out infinite alternate; }
+.b2 { width: 420px; height: 420px; background: radial-gradient(circle, var(--ps), transparent 70%); bottom: -16%; right: -8%; animation: d2 32s ease-in-out infinite alternate; }
+.b3 { width: 300px; height: 300px; background: radial-gradient(circle, var(--pd), transparent 70%); top: 40%; left: 58%; animation: d3 38s ease-in-out infinite alternate; }
+@keyframes d1 { 0% { transform: translate3d(-5%, -5%, 0); } to { transform: translate3d(9%, 13%, 0) scale(1.1); } }
+@keyframes d2 { 0% { transform: translate3d(9%, 7%, 0) scale(1.06); } to { transform: translate3d(-11%, -5%, 0) scale(.93); } }
+@keyframes d3 { 0% { transform: translate3d(0, 14%, 0) scale(.86); } to { transform: translate3d(-12%, -9%, 0) scale(1.16); } }
 
-            html, body { min-height: 100%; }
+.content { position: relative; z-index: 2; width: 100%; max-width: 640px; text-align: center; }
 
-            body {
-                background: var(--bg);
-                color: var(--tx);
-                overflow-x: hidden;
-                min-height: 100vh;
-                min-height: 100dvh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: max(24px, env(safe-area-inset-top)) 0 max(24px, env(safe-area-inset-bottom));
-            }
+/* 4 (black hole) 4: the zero is the logo's black hole */
+.hero {
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(96px, 26vw, 210px);
+  font-weight: 800; line-height: 1; letter-spacing: -.04em;
+  margin-bottom: 8px;
+}
+.hero .d {
+  background: linear-gradient(160deg, var(--ps), var(--pu) 60%, var(--pd));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 8px 32px rgba(var(--pu-rgb), .35));
+}
+.hero svg { width: 1.08em; height: 1.08em; margin: 0 -.06em; flex: none; overflow: visible; color: var(--tx); }
+.hero .glow { transform-origin: 32px 32px; animation: pulse 5s ease-in-out infinite alternate; }
+@keyframes pulse { from { opacity: .75; transform: scale(.97); } to { opacity: 1; transform: scale(1.04); } }
 
-            /* ── Ambient light: three soft glows that drift. Transform-only
-               animation (compositor-friendly), and switched off entirely for
-               reduced motion. ── */
-            .blobs { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
-            .blob {
-                position: absolute;
-                border-radius: 50%;
-                filter: blur(90px);
-                opacity: .3;
-                will-change: transform;
-            }
-            :root[data-theme="light"] .blob { opacity: .22; }
-            .b1 { width: 500px; height: 500px; background: radial-gradient(circle, var(--pu), transparent 70%);
-                  top: -14%; left: -10%; animation: d1 26s ease-in-out infinite alternate; }
-            .b2 { width: 420px; height: 420px; background: radial-gradient(circle, var(--ps), transparent 70%);
-                  bottom: -16%; right: -8%; animation: d2 32s ease-in-out infinite alternate; }
-            .b3 { width: 300px; height: 300px; background: radial-gradient(circle, var(--pd), transparent 70%);
-                  top: 40%; left: 58%; animation: d3 38s ease-in-out infinite alternate; }
-            @keyframes d1 { 0% { transform: translate3d(-5%, -5%, 0); } to { transform: translate3d(9%, 13%, 0) scale(1.1); } }
-            @keyframes d2 { 0% { transform: translate3d(9%, 7%, 0) scale(1.06); } to { transform: translate3d(-11%, -5%, 0) scale(.93); } }
-            @keyframes d3 { 0% { transform: translate3d(0, 14%, 0) scale(.86); } to { transform: translate3d(-12%, -9%, 0) scale(1.16); } }
+h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02em; margin: 6px 0 10px; }
+.sub { color: var(--td); font-size: 15px; line-height: 1.6; max-width: 460px; margin: 0 auto; }
+.path {
+  display: inline-block; max-width: 100%; margin: 18px auto 0; padding: 6px 12px; border-radius: 10px;
+  font: 13px/1.4 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--ps); background: rgba(var(--pu-rgb), .1); border: 1px solid rgba(var(--pu-rgb), .22);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top;
+}
+.path:empty { display: none; }
 
-            .content { position: relative; z-index: 2; width: 100%; text-align: center; }
+.actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+.btn {
+  font: inherit; font-size: 14.5px; font-weight: 600; text-decoration: none; cursor: pointer;
+  padding: 11px 22px; border-radius: 12px; border: 1px solid transparent;
+  transition: transform .15s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.btn:active { transform: scale(.97); }
+.btn:focus-visible { outline: 2px solid var(--ps); outline-offset: 3px; }
+.btn.p { background: linear-gradient(135deg, var(--pu), var(--ps)); color: #fff; box-shadow: 0 8px 26px rgba(var(--pu-rgb), .35); }
+.btn.p:hover { box-shadow: 0 10px 34px rgba(var(--pu-rgb), .5); transform: translateY(-1px); }
+.btn.g { background: rgba(var(--pu-rgb), .08); color: var(--tx); border-color: rgba(var(--pu-rgb), .3); }
+.btn.g:hover { background: rgba(var(--pu-rgb), .16); }
 
-            /* ── ERROR 404 ── */
-            .title {
-                font-family: "Bevan", Georgia, serif;
-                font-size: 130px;
-                line-height: 1.1;
-                margin: 0 0 18px;
-                letter-spacing: 5px;
-                white-space: nowrap;
-            }
-            .title .ch {
-                display: inline-block;
-                background: linear-gradient(135deg, var(--pu), var(--ps));
-                -webkit-background-clip: text;
-                background-clip: text;
-                color: transparent;
-                filter: drop-shadow(0 6px 30px rgba(var(--pu-rgb), .35));
-            }
-            .title .big { font-size: 1.2em; }
+.quote { margin-top: 44px; font-size: 12.5px; color: var(--tm); line-height: 1.6; }
+.quote b { font-weight: 500; color: var(--td); }
 
-            /* Entrance: each letter rises out of a blur into focus — motion
-               is transform + blur, not an opacity fade, so the type appears to
-               "resolve" rather than switch on. One sequence, on load only. */
-            .js .title .ch { opacity: 0; transform: translateY(.35em) scale(.92); filter: blur(14px); }
-            .js .title.in .ch {
-                animation: rise .9s cubic-bezier(.2, .8, .2, 1) forwards;
-                animation-delay: calc(var(--i) * 55ms);
-            }
-            @keyframes rise {
-                0%   { opacity: 0; transform: translateY(.35em) scale(.92); filter: blur(14px); }
-                60%  { opacity: 1; }
-                100% { opacity: 1; transform: none; filter: drop-shadow(0 6px 30px rgba(var(--pu-rgb), .35)); }
-            }
-            /* once settled, "404" breathes very slowly */
-            .title.settled .big { animation: glow 5s ease-in-out infinite alternate; }
-            @keyframes glow {
-                from { filter: drop-shadow(0 6px 30px rgba(var(--pu-rgb), .35)); }
-                to   { filter: drop-shadow(0 8px 46px rgba(var(--pu-rgb), .6)); }
-            }
+/* entrance */
+.js .rise { opacity: 0; transform: translateY(14px); filter: blur(8px); animation: rise .8s cubic-bezier(.2, .8, .2, 1) forwards; animation-delay: calc(var(--n, 0) * 110ms + 80ms); }
+@keyframes rise { to { opacity: 1; transform: none; filter: none; } }
 
-            /* ── The three code lines ── */
-            .lines { display: inline-block; text-align: left; max-width: calc(100vw - 48px); }
-            code {
-                color: var(--td);
-                display: block;
-                font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-                font-size: 16px;
-                line-height: 1.6;
-                margin: 0 0 10px;
-                white-space: pre-wrap;
-                overflow-wrap: anywhere;
-                min-height: 1.6em;
-            }
-            code span { color: var(--yw); }
-            code i { color: var(--gr); font-style: normal; }
-            code em { color: var(--ps); font-style: unset; }
-            code b { color: var(--bl); font-weight: 500; }
+@media (prefers-reduced-motion: reduce) {
+  .blob, .hero .glow { animation: none !important; }
+  .js .rise { animation: none !important; opacity: 1; transform: none; filter: none; }
+}
+</style>
+</head>
+<body>
+<div class="blobs" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
 
-            .caret {
-                display: inline-block;
-                width: .6ch;
-                height: 1.15em;
-                margin-left: 1px;
-                vertical-align: text-bottom;
-                background: var(--ps);
-                border-radius: 1px;
-            }
-            .caret.blink { animation: blink 1.05s steps(1, end) infinite; }
-            @keyframes blink { 50% { opacity: 0; } }
+<main class="content">
+  <div class="hero rise" style="--n:0" role="img" aria-label="404">
+    <span class="d">4</span>
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <g class="glow"><path fill-rule="evenodd" fill="var(--pu)" fill-opacity=".5" d="M11.1 32a20.9 20.9 0 1 0 41.8 0a20.9 20.9 0 1 0 -41.8 0Z M15.9 32a16.1 16.1 0 1 0 32.2 0a16.1 16.1 0 1 0 -32.2 0Z"/></g>
+      <g transform="translate(32 32) rotate(-10)"><clipPath id="hide-far"><path clip-rule="evenodd" d="M-80 -80H80V80H-80Z M-16.9 0a16.9 16.9 0 1 0 33.8 0a16.9 16.9 0 1 0 -33.8 0Z"/></clipPath>
+        <path d="M-27 0A27 6.4 0 0 1 27 0Z" fill="var(--pu)" fill-opacity=".55" clip-path="url(#hide-far)"/></g>
+      <circle cx="32" cy="32" r="13" fill="none" stroke="currentColor" stroke-width="3.8"/>
+      <g transform="translate(32 32) rotate(-10)"><path d="M-27 0A27 6.4 0 0 0 27 0Z" fill="var(--pu)"/></g>
+    </svg>
+    <span class="d">4</span>
+  </div>
+  <h1 class="rise" style="--n:1">This page fell into the void.</h1>
+  <p class="sub rise" style="--n:2">The link may be mistyped, or the page was moved or removed. There&rsquo;s nothing out here but darkness, so let&rsquo;s head back.</p>
+  <div class="rise" style="--n:3"><span class="path" id="path"></span></div>
+  <div class="actions rise" style="--n:4">
+    <a class="btn p" href="/">Back to home</a>
+    <button class="btn g" type="button" id="back">Go back</button>
+  </div>
+  <p class="quote rise" style="--n:5">&ldquo;Newton&rsquo;s third law. You gotta leave something behind.&rdquo; <b>&mdash; Cooper, Interstellar</b></p>
+</main>
 
-            /* ── Link and quote: appear once the typing finishes ── */
-            .after { margin-top: 18px; }
-            .js .after { opacity: 0; transform: translateY(10px); }
-            .js .after.in { transition: opacity .6s ease, transform .7s cubic-bezier(.2, .8, .2, 1); opacity: 1; transform: none; }
-            .js .after.in + .after.in { transition-delay: .15s; }
-
-            a {
-                color: var(--ps);
-                font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-                font-size: 20px;
-                text-decoration: underline;
-                text-underline-offset: 4px;
-                display: inline-block;
-                border-radius: 4px;
-                padding: 2px 6px;
-                transition: color .2s ease, background-color .2s ease;
-            }
-            a:hover { color: var(--tx); background: rgba(var(--pu-rgb), .14); }
-            a:focus-visible { outline: 2px solid var(--ps); outline-offset: 3px; }
-
-            .quote {
-                font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-                font-size: 15px;
-                color: var(--td);
-                margin: 30px 30px 0;
-            }
-            .quote .author { display: block; margin-top: 6px; color: var(--ps); }
-
-            .sr-only {
-                position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-                overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-            }
-
-            @media screen and (max-width: 880px) {
-                .title { font-size: 14vw; letter-spacing: 2px; }
-                code { font-size: 14px; }
-                a { font-size: 18px; }
-            }
-
-            /* Reduced motion: everything is simply there — no drift, typing,
-               letter entrance, breathing glow or blinking caret. */
-            @media (prefers-reduced-motion: reduce) {
-                .blob, .title .big, .caret.blink { animation: none !important; }
-                .js .title .ch, .js .after { opacity: 1 !important; transform: none !important; filter: drop-shadow(0 6px 30px rgba(var(--pu-rgb), .35)) !important; animation: none !important; }
-                .js .after { filter: none !important; transition: none !important; }
-            }
-        </style>
-    </head>
-
-    <body>
-        <div class="blobs" aria-hidden="true">
-            <div class="blob b1"></div>
-            <div class="blob b2"></div>
-            <div class="blob b3"></div>
-        </div>
-        <main class="content">
-            <img src="/static/logo.svg" width="56" height="56" alt="" style="display:block;margin:0 auto 18px;border-radius:15px"/>
-            <h1 class="title" aria-label="ERROR 404"><span class="word">ERROR</span> <span class="big">404</span></h1>
-            <!-- Screen readers get the whole text at once; the animated copy is hidden from them. -->
-            <div class="sr-only">this_page.not_found = true; if (you_spelt_it_wrong) {try_again();} else if (we_screwed_up) {alert("We're really sorry about that."); window.location = home;}</div>
-            <div class="lines" aria-hidden="true">
-                <code><span>this_page</span>.<em>not_found</em> = true;</code>
-                <code><span>if</span> (<b>you_spelt_it_wrong</b>) {<span>try_again()</span>;}</code>
-                <code><span>else if (<b>we_screwed_up</b>)</span> {<em>alert</em>(<i>"We're really sorry about that."</i>); <span>window</span>.<em>location</em> = home;}</code>
-            </div>
-            <div class="after"><a href="/">Back to Home</a></div>
-            <p class="quote after">"Newton's third law. You gotta leave something behind." <span class="author">&mdash;Cooper, Interstellar</span></p>
-        </main>
-
-        <script>
-        (function () {
-            var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            var title = document.querySelector('.title');
-            var codes = Array.prototype.slice.call(document.querySelectorAll('.lines code'));
-            var afters = Array.prototype.slice.call(document.querySelectorAll('.after'));
-
-            // Split the title into letters for the staggered entrance.
-            var i = 0;
-            Array.prototype.forEach.call(title.querySelectorAll('.word, .big'), function (part) {
-                var text = part.textContent; part.textContent = '';
-                for (var k = 0; k < text.length; k++) {
-                    var ch = document.createElement('span');
-                    ch.className = 'ch'; ch.textContent = text[k];
-                    ch.style.setProperty('--i', i++);
-                    part.appendChild(ch);
-                }
-            });
-
-            function showAfter() { afters.forEach(function (a) { a.classList.add('in'); }); }
-
-            if (reduce) { title.classList.add('in', 'settled'); showAfter(); return; }
-
-            // Typewriter that walks text nodes inside each line, so the coloured
-            // spans stay intact the whole time (the original sliced the raw HTML
-            // string, typing through tag names and flashing half-written markup).
-            // Hold the block at its finished width so the text types from a
-            // fixed left edge instead of the centred block shifting as it grows.
-            var linesEl = document.querySelector('.lines');
-            linesEl.style.width = Math.ceil(linesEl.getBoundingClientRect().width) + 'px';
-            var plan = codes.map(function (code) {
-                var nodes = [], walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT, null);
-                var n; while ((n = walker.nextNode())) { nodes.push({ node: n, text: n.nodeValue }); n.nodeValue = ''; }
-                return nodes;
-            });
-            var caret = document.createElement('span'); caret.className = 'caret';
-
-            function delayFor(c) {                 // a human-ish cadence
-                if (c === ';' || c === '{' || c === '}') return 140;
-                if (c === '.' || c === ',' || c === '(' || c === ')') return 70;
-                if (c === ' ') return 35;
-                return 22 + Math.random() * 26;
-            }
-            function typeLine(li, done) {
-                var nodes = plan[li], ni = 0, ci = 0;
-                (function step() {
-                    while (ni < nodes.length && ci >= nodes[ni].text.length) { ni++; ci = 0; }
-                    if (ni >= nodes.length) { return setTimeout(done, 260); }
-                    var item = nodes[ni];
-                    item.node.nodeValue = item.text.slice(0, ++ci);
-                    // keep the caret right after the character just typed
-                    var parent = item.node.parentNode;
-                    if (item.node.nextSibling) parent.insertBefore(caret, item.node.nextSibling); else parent.appendChild(caret);
-                    setTimeout(step, delayFor(item.text[ci - 1]));
-                })();
-            }
-            function typeAll(li) {
-                if (li >= plan.length) { caret.classList.add('blink'); showAfter(); return; }
-                typeLine(li, function () { typeAll(li + 1); });
-            }
-
-            requestAnimationFrame(function () {
-                title.classList.add('in');
-                // the last letter's entrance ends at roughly (letters x 55ms) + 900ms
-                setTimeout(function () { title.classList.add('settled'); }, i * 55 + 950);
-                setTimeout(function () { typeAll(0); }, 650);
-            });
-        })();
-        </script>
-    <script>(function(){var b=document.querySelectorAll('.blob');if(!b.length)return;
+<script>
+(function () {
+  // Show what was asked for (as text, never as markup), and make "Go back" do the sensible thing.
+  var p = document.getElementById('path');
+  try { p.textContent = decodeURIComponent(location.pathname + location.search).slice(0, 160); } catch (e) { p.textContent = location.pathname.slice(0, 160); }
+  var b = document.getElementById('back');
+  b.addEventListener('click', function () {
+    if (history.length > 1 && document.referrer && new URL(document.referrer).origin === location.origin) history.back();
+    else location.href = '/';
+  });
+})();
+</script>
+<script>(function(){var b=document.querySelectorAll('.blob');if(!b.length)return;
   var r=function(a,z){return a+Math.random()*(z-a)},sg=function(){return Math.random()<.5?-1:1};
   b.forEach(function(el){
     el.style.left=r(-5,85).toFixed(1)+'%';el.style.top=r(-5,85).toFixed(1)+'%';el.style.right='auto';el.style.bottom='auto';
-    el.style.setProperty('--x0',(sg()*r(5,18)).toFixed(1)+'vw');el.style.setProperty('--y0',(sg()*r(5,18)).toFixed(1)+'vh');
-    el.style.setProperty('--x1',(sg()*r(16,34)).toFixed(1)+'vw');el.style.setProperty('--y1',(sg()*r(16,34)).toFixed(1)+'vh');
-    el.style.setProperty('--s1',r(.85,1.35).toFixed(2));
-    el.style.animationDelay='-'+r(0,20).toFixed(1)+'s';       // start part-way through, so no two loads look alike
+    el.style.animationDelay='-'+r(0,20).toFixed(1)+'s';
   });})();</script>
 </body>
 </html>
