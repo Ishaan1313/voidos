@@ -42,6 +42,11 @@ def _audit(action: str, user: dict | None = None, target: str = "", detail: str 
             if random.random() < 0.02:  # trim occasionally, not on every write
                 _audit_trim()
         _maybe_notify(entry)
+        try:
+            from modules.web import _broadcast_coalesced
+            _broadcast_coalesced("audit", {"type": "audit_changed"}, roles=("admin", "superuser"))   # an open Activity Log adds the row
+        except Exception:
+            pass
     except Exception:
         pass
 

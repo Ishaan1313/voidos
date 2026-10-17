@@ -98,6 +98,11 @@ def _sh_load() -> list:
 def _sh_save(d):
     with _shares_lock:
         _atomic_write_json(SHARES_FILE, d)
+    try:
+        from modules.web import _broadcast_coalesced
+        _broadcast_coalesced("shares", {"type": "shares_changed"})     # every open Share Links page redraws
+    except Exception:
+        pass
 
 def _require_shared_scope(p: Path):
     """Raise ValueError unless p is the Shared folder itself or something under it."""

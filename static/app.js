@@ -5459,10 +5459,22 @@ function liveRefresh(kind){
   clearTimeout(_liveTimers[kind]);
   _liveTimers[kind]=setTimeout(async()=>{
     try{
+      const modalOpen=()=>!document.getElementById('ovr')?.classList.contains('hidden');
       if(kind==='apps_changed'){
         if(curV==='dashboard'){document.getElementById('tgrid')?loadTiles():rDash()}
+        else if(curV==='appstore'&&!modalOpen()&&typeof asReload==='function')asReload();
+      }else if(kind==='shares_changed'){
+        if(curV==='shares'&&!modalOpen()&&!document.activeElement?.closest?.('#sharesListSection'))loadShares(_renderGen,(document.getElementById('sharesUserF')?.value||'').trim());
+      }else if(kind==='audit_changed'){
+        if(document.getElementById('auditSection')&&!modalOpen()&&!document.activeElement?.closest?.('#auditSection'))
+          loadAuditLog(document.getElementById('auditActionF')?.value||'',(document.getElementById('auditUserF')?.value||'').trim());
+      }else if(kind==='errors_changed'){
+        if(document.getElementById('errorLogSection')&&!modalOpen()&&!document.activeElement?.closest?.('#errorLogSection'))
+          loadErrorLog((document.getElementById('errRefF')?.value||'').trim(),document.getElementById('errSrcF')?.value||'');
       }else if(kind==='storage_changed'){
         _places=null;
+        if(document.getElementById('usbList')&&!document.activeElement?.matches?.('input,select')&&typeof loadUsbList==='function')loadUsbList();
+        if(document.getElementById('networkShareList')&&typeof loadNetworkShares==='function')loadNetworkShares();
         if(curV==='files'&&typeof curP==='string'&&!document.querySelector('.fitem.dragging'))rFiles(curP);
       }else if(kind==='sessions_changed'){
         if(curV==='sessions'&&document.getElementById('sessionsSection')&&document.getElementById('ovr')?.classList.contains('hidden'))loadSessions();
@@ -5499,6 +5511,19 @@ async function accessCheck(){
   }catch(_){}finally{_accessBusy=false}
 }
 setInterval(()=>{if(!document.hidden)accessCheck()},10000);
+// Containers also change outside Void OS (the docker CLI, a crash, a restart policy): while that tab is open, look every few
+// seconds and redraw only when something actually differs.
+let _ctrsSig=null,_ctrsSigGen=-1,_ctrsBusy=false;
+setInterval(async()=>{
+  if(document.hidden||curV!=='containers'||_ctrsBusy||!DOKR||!document.getElementById('ovr')?.classList.contains('hidden'))return;
+  _ctrsBusy=true;
+  try{
+    const r=await api('/api/containers');if(!r.ok)return;
+    const sig=JSON.stringify(await r.json());
+    if(_ctrsSigGen!==_renderGen){_ctrsSigGen=_renderGen;_ctrsSig=sig;return}     // first look at this render: just remember it
+    if(sig!==_ctrsSig){_ctrsSig=sig;rCtrs()}
+  }catch(_){}finally{_ctrsBusy=false}
+},4000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)accessCheck()});
 
 let _ctrlGaveUp=false;
@@ -5516,7 +5541,7 @@ function initControlSocket(){
     if(msg.type==='notification_update'){notifUpdate(msg.item);return}
     if(msg.type==='permissions_changed')applyPermissionsUpdate(msg);
     else if(msg.type==='force_logout')endSessionNow(msg.reason);
-    else if(msg.type==='apps_changed'||msg.type==='storage_changed'||msg.type==='users_changed'||msg.type==='server_settings_changed'||msg.type==='sessions_changed')
+    else if(msg.type==='apps_changed'||msg.type==='storage_changed'||msg.type==='users_changed'||msg.type==='server_settings_changed'||msg.type==='sessions_changed'||msg.type==='shares_changed'||msg.type==='audit_changed'||msg.type==='errors_changed')
       liveRefresh(msg.type);
   };
   ws.onclose=()=>{

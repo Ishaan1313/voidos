@@ -64,6 +64,11 @@ def _record_error(entry: dict) -> None:
                 winplat.replace_with_retry(tmp, ERROR_LOG_FILE)
         except OSError:
             pass
+    try:
+        from modules.web import _broadcast_coalesced
+        _broadcast_coalesced("errors", {"type": "errors_changed"}, roles=("admin", "superuser"))
+    except Exception:
+        pass
 
 _error_log_load()
 
