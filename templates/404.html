@@ -70,6 +70,10 @@ body {
   border: 2px solid var(--ps); opacity: 0; pointer-events: none; animation: ripple 1.2s ease-out forwards; }
 @keyframes ripple { from { opacity: .8; transform: scale(.5); } to { opacity: 0; transform: scale(3.2); } }
 .hero .glow, .hero .disc { transition: transform .4s ease; }
+.gas { animation: gasflow 9s linear infinite; }
+.gas.g1 { animation-duration: 6.5s; }
+.gas.g2 { animation-duration: 4.5s; }
+@keyframes gasflow { to { stroke-dashoffset: -41; } }
 @keyframes pulse { from { opacity: .75; transform: scale(.97); } to { opacity: 1; transform: scale(1.04); } }
 
 h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02em; margin: 6px 0 10px; }
@@ -103,7 +107,7 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
 @keyframes rise { to { opacity: 1; transform: none; filter: none; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .blob, .hero .glow, .hero .d, .hero svg, .ripple { animation: none !important; }
+  .blob, .hero .glow, .hero .d, .hero svg, .ripple, .gas { animation: none !important; }
   .js .rise { animation: none !important; opacity: 1; transform: none; filter: none; }
 }
 </style>
@@ -128,6 +132,13 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
           <stop offset=".75" stop-color="var(--pu)"/><stop offset="1" stop-color="var(--pd)"/>
           <animateTransform class="shimmer" attributeName="gradientTransform" type="translate" values="-.12 0;.12 0;-.12 0" dur="9s" repeatCount="indefinite"/>
         </linearGradient>
+        <linearGradient id="hg-hot" x1="0" y1="0" x2="1" y2="0" spreadMethod="reflect">
+          <stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#fff0d2"/><stop offset=".7" stop-color="#ffd2a0"/><stop offset="1" stop-color="var(--ps)"/>
+          <animateTransform class="shimmer" attributeName="gradientTransform" type="translate" values=".08 0;-.08 0;.08 0" dur="7s" repeatCount="indefinite"/>
+        </linearGradient>
+        <linearGradient id="hg-outer" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="var(--ps)"/><stop offset=".5" stop-color="var(--pu)"/><stop offset="1" stop-color="var(--pd)"/>
+        </linearGradient>
         <linearGradient id="hg-lens" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stop-color="#fff4dc"/><stop offset=".5" stop-color="var(--ps)"/><stop offset="1" stop-color="var(--pu)"/>
         </linearGradient>
@@ -137,11 +148,11 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
       </defs>
       <g class="glow"><circle cx="32" cy="32" r="31" fill="url(#hg-halo)"/></g>
       <!-- the far side of the disc, bent over the top and under the bottom of the hole by its gravity -->
-      <path d="M17.2 26.5A16 16 0 0 1 46.8 26.5" fill="none" stroke="url(#hg-lens)" stroke-width="3.4" stroke-linecap="round" opacity="1" filter="url(#hg-soft)"/>
+      <path d="M17.2 26.5A16 16 0 0 1 46.8 26.5" fill="none" stroke="url(#hg-lens)" stroke-width="4.2" stroke-linecap="round" opacity="1" filter="url(#hg-soft)"/>
       <path d="M20.5 39.5A14.5 14.5 0 0 0 43.5 39.5" fill="none" stroke="var(--pu)" stroke-width="1.6" stroke-linecap="round" opacity=".7" filter="url(#hg-soft)"/>
       <g transform="translate(32 32) rotate(-9)">
         <g clip-path="url(#hg-outside)" transform="translate(-32 -32)">
-          <g transform="translate(32 32)"><path fill-rule="evenodd" fill="url(#hg-disc)" opacity=".7" d="M-27 0a27 7.4 0 0 1 54 0a15 3.4 0 0 0 -54 0Z"/></g>
+          <g transform="translate(32 32)"><path d="M-31.5 0A31.5 9.6 0 0 1 31.5 0L25.5 0A25.5 7.2 0 0 0 -25.5 0Z" fill="url(#hg-outer)" opacity="0.6"/><path d="M-25.5 0A25.5 7.2 0 0 1 25.5 0L20.5 0A20.5 5.0 0 0 0 -20.5 0Z" fill="url(#hg-disc)" opacity="0.95"/><path d="M-20.5 0A20.5 5.0 0 0 1 20.5 0L16.0 0A16.0 3.3 0 0 0 -16.0 0Z" fill="url(#hg-hot)" opacity="1"/><path class="gas g0" d="M-28.5 0A28.5 8.4 0 0 1 28.5 0" fill="none" stroke="#fffaf0" stroke-opacity="0.50" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/><path class="gas g1" d="M-23 0A23 6.1 0 0 1 23 0" fill="none" stroke="#fffaf0" stroke-opacity="0.40" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/><path class="gas g2" d="M-18.2 0A18.2 4.1 0 0 1 18.2 0" fill="none" stroke="#fffaf0" stroke-opacity="0.30" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/></g>
         </g>
       </g>
       <!-- the event horizon: pure black, with the photon ring burning at its edge -->
@@ -149,10 +160,7 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
       <circle cx="32" cy="32" r="13.6" fill="none" stroke="#fff6e4" stroke-width="2.6" opacity=".55" filter="url(#hg-glow)"/>
       <circle cx="32" cy="32" r="13.4" fill="none" stroke="#fffaf0" stroke-width="1.2"/>
       <!-- the near side of the disc, passing in front -->
-      <g transform="translate(32 32) rotate(-9)">
-        <path d="M-29.5 0a29.5 9 0 0 0 59 0a14.5 3.9 0 0 1 -59 0Z" fill="url(#hg-disc)" opacity=".22"/>
-        <path d="M-27 0a27 7.4 0 0 0 54 0a15 3.4 0 0 1 -54 0Z" fill="url(#hg-disc)"/>
-      </g>
+      <g transform="translate(32 32) rotate(-9)"><path d="M-31.5 0A31.5 9.6 0 0 0 31.5 0L25.5 0A25.5 7.2 0 0 1 -25.5 0Z" fill="url(#hg-outer)" opacity="0.6"/><path d="M-25.5 0A25.5 7.2 0 0 0 25.5 0L20.5 0A20.5 5.0 0 0 1 -20.5 0Z" fill="url(#hg-disc)" opacity="0.95"/><path d="M-20.5 0A20.5 5.0 0 0 0 20.5 0L16.0 0A16.0 3.3 0 0 1 -16.0 0Z" fill="url(#hg-hot)" opacity="1"/><path class="gas g0" d="M-28.5 0A28.5 8.4 0 0 0 28.5 0" fill="none" stroke="#fffaf0" stroke-opacity="0.50" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/><path class="gas g1" d="M-23 0A23 6.1 0 0 0 23 0" fill="none" stroke="#fffaf0" stroke-opacity="0.40" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/><path class="gas g2" d="M-18.2 0A18.2 4.1 0 0 0 18.2 0" fill="none" stroke="#fffaf0" stroke-opacity="0.30" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/></g>
     </svg>
     <span class="d r">4</span>
   </div>
