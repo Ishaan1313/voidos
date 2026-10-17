@@ -2227,9 +2227,11 @@ function greetHtml(){
 }
 // Keeps the dashboard greeting current (morning/afternoon/etc.) without a visible clock
 function startGreetingRefresh(){
-  setInterval(()=>{
-    if(new Date().getSeconds()===0){const g=document.getElementById('greetTitle');if(g)g.innerHTML=greetHtml()}
-  },1000);
+  const tick=()=>{
+    if(!document.hidden){const g=document.getElementById('greetTitle');if(g)g.innerHTML=greetHtml()}
+    setTimeout(tick,(61-new Date().getSeconds())*1000);       // next minute boundary
+  };
+  setTimeout(tick,(61-new Date().getSeconds())*1000);
 }
 
 // ── DASHBOARD ───────────────────────────────────────────────────
@@ -2630,6 +2632,7 @@ function ring(rid,vid,lbl){
 // SSE only worked over direct LAN access, not through the tunnel. Plain polling
 // works identically over LAN and over the tunnel.
 async function pollStats(){
+  if(document.hidden)return;                      // nobody is looking: skip the request
   try{
     const r=await api('/api/stats');
     applyS(await r.json());
@@ -2639,6 +2642,7 @@ function startStatsPoll(){
   if(statsPoll)clearInterval(statsPoll);
   pollStats();
   statsPoll=setInterval(pollStats,2000);
+  if(!window._statsVis){window._statsVis=1;document.addEventListener('visibilitychange',()=>{if(!document.hidden&&statsPoll)pollStats()})}   // fresh numbers the moment you come back
 }
 function drawNet(){
   const c=document.getElementById('ncvs');if(!c)return;
@@ -4406,6 +4410,7 @@ async function viewFile(path,name){
         }
       }
       const isMarkdown=['md','markdown'].includes(d.ext||'');let content='';
+      try{await loadScript('/static/vendor/viewer.js')}catch(_){}     // markdown and syntax highlighting live in this library
       if(isMarkdown&&typeof marked!=='undefined'){content=`<div style="padding:12px 2px;line-height:1.75;font-size:14px;color:var(--tx)">${marked.parse(d.content)}</div>`}
       else{let hi=esc(d.content);if(typeof hljs!=='undefined'){try{hi=hljs.highlight(d.content,{language:d.ext||'plaintext',ignoreIllegals:true}).value}catch(_){try{hi=hljs.highlightAuto(d.content).value}catch(_2){}}}
         content=`<div class="fv-code"><pre style="padding:14px;margin:0;overflow:auto"><code class="hljs">${hi}</code></pre></div>`}
@@ -7746,7 +7751,8 @@ async function refreshTunnel(){
 startGreetingRefresh();
 initControlSocket();
 notifMountBells();notifRefresh();
-loadScript('/static/vendor/viewer.js').catch(()=>{});
+// 160 KB that only the file viewer needs: fetched when the browser has nothing better to do (and awaited before use)
+(window.requestIdleCallback||(f=>setTimeout(f,1500)))(()=>loadScript('/static/vendor/viewer.js').catch(()=>{}),{timeout:4000});
 applyUiMode();
 (function(){
   const qs=new URLSearchParams(window.location.search);
