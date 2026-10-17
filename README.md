@@ -76,7 +76,7 @@ Every option is listed by `bash "first setup/install.sh" --help` / `.\install.ps
 </tr>
 </table>
 
-<sub>Plus <b>Horizon</b>, the default (first picture). Pick yours in <i>Settings → Appearance</i>.</sub>
+<sub>Plus <b>Horizon</b> (blue); <b>Void</b> (purple) is the default. Pick yours in <i>Settings → Appearance</i>.</sub>
 
 <img src="docs/screenshots/settings-appearance.png" alt="Settings: appearance" width="700">
 

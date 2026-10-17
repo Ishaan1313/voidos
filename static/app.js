@@ -1397,8 +1397,8 @@ async function saveSettings(patch){
 let _lastSaveErr=null; // the failed response, so callers can show *why*
 
 const THEMES=[
-  {id:'horizon',name:'Horizon',bg:'#0b1220',tx:'#eef6ff',c1:'#1fb6ff',c2:'#6fdcff'},
   {id:'void',name:'Void',bg:'#0a0a12',tx:'#f3f1fb',c1:'#6d4aff',c2:'#9b85ff'},
+  {id:'horizon',name:'Horizon',bg:'#0b1220',tx:'#eef6ff',c1:'#1fb6ff',c2:'#6fdcff'},
   {id:'light',name:'Daylight',bg:'#f4f3fa',tx:'#1c1830',c1:'#6d4aff',c2:'#5636e0'},
   {id:'emerald',name:'Emerald',bg:'#050d0c',tx:'#eafaf3',c1:'#18a976',c2:'#4eeab0'},
   {id:'crimson',name:'Crimson',bg:'#0f0708',tx:'#fdf1ef',c1:'#d92b3f',c2:'#ff6f6f'},
@@ -1411,7 +1411,7 @@ function themeSwatch(t,current){
   </button>`;
 }
 async function setTheme(themeId){
-  const prev=document.documentElement.getAttribute('data-theme')||'horizon';
+  const prev=document.documentElement.getAttribute('data-theme')||'void';
   document.documentElement.setAttribute('data-theme',themeId); // instant preview, no flash
   const ok=await saveSettings({theme:themeId});
   if(ok){toast('Theme updated','success');rSettings()}
@@ -7113,7 +7113,7 @@ function rSettings(){
         <div class="ssep">Color theme</div>
         <div class="srow col">
           <div><div class="sdesc" style="margin-top:0">Pick a look for the whole interface</div></div>
-          <div class="theme-grid">${THEMES.map(t=>themeSwatch(t,SETTINGS.theme||'horizon')).join('')}</div>
+          <div class="theme-grid">${THEMES.map(t=>themeSwatch(t,SETTINGS.theme||'void')).join('')}</div>
         </div>
       </div>
       <div class="scard">

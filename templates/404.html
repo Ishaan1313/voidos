@@ -117,11 +117,42 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
   <div class="hero rise" style="--n:0" role="img" aria-label="404">
     <span class="d l">4</span>
     <svg viewBox="0 0 64 64" aria-hidden="true" id="hole">
-      <g class="glow"><path fill-rule="evenodd" fill="var(--pu)" fill-opacity=".5" d="M11.1 32a20.9 20.9 0 1 0 41.8 0a20.9 20.9 0 1 0 -41.8 0Z M15.9 32a16.1 16.1 0 1 0 32.2 0a16.1 16.1 0 1 0 -32.2 0Z"/></g>
-      <g transform="translate(32 32) rotate(-10)"><clipPath id="hide-far"><path clip-rule="evenodd" d="M-80 -80H80V80H-80Z M-16.9 0a16.9 16.9 0 1 0 33.8 0a16.9 16.9 0 1 0 -33.8 0Z"/></clipPath>
-        <path d="M-27 0A27 6.4 0 0 1 27 0Z" fill="var(--pu)" fill-opacity=".55" clip-path="url(#hide-far)"/></g>
-      <circle cx="32" cy="32" r="13" fill="none" stroke="currentColor" stroke-width="3.8"/>
-      <g transform="translate(32 32) rotate(-10)"><path d="M-27 0A27 6.4 0 0 0 27 0Z" fill="var(--pu)"/></g>
+      <defs>
+        <radialGradient id="hg-halo" cx="50%" cy="50%" r="50%">
+          <stop offset=".34" stop-color="var(--pu)" stop-opacity="0"/><stop offset=".47" stop-color="var(--ps)" stop-opacity=".55"/>
+          <stop offset=".62" stop-color="var(--pu)" stop-opacity=".22"/><stop offset="1" stop-color="var(--pu)" stop-opacity="0"/>
+        </radialGradient>
+        <!-- the disc is hotter and brighter on the side that is rushing towards us (relativistic beaming), and it shimmers slowly -->
+        <linearGradient id="hg-disc" x1="0" y1="0" x2="1" y2="0" spreadMethod="reflect">
+          <stop offset="0" stop-color="#fff4dc"/><stop offset=".22" stop-color="#ffd9a8"/><stop offset=".45" stop-color="var(--ps)"/>
+          <stop offset=".75" stop-color="var(--pu)"/><stop offset="1" stop-color="var(--pd)"/>
+          <animateTransform class="shimmer" attributeName="gradientTransform" type="translate" values="-.12 0;.12 0;-.12 0" dur="9s" repeatCount="indefinite"/>
+        </linearGradient>
+        <linearGradient id="hg-lens" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff4dc"/><stop offset=".5" stop-color="var(--ps)"/><stop offset="1" stop-color="var(--pu)"/>
+        </linearGradient>
+        <filter id="hg-soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation=".9"/></filter>
+        <filter id="hg-glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.6"/></filter>
+        <clipPath id="hg-outside" clipPathUnits="userSpaceOnUse"><path clip-rule="evenodd" d="M-80 -80H144V144H-80Z M19 32a13 13 0 1 0 26 0a13 13 0 1 0 -26 0Z"/></clipPath>
+      </defs>
+      <g class="glow"><circle cx="32" cy="32" r="31" fill="url(#hg-halo)"/></g>
+      <!-- the far side of the disc, bent over the top and under the bottom of the hole by its gravity -->
+      <path d="M17.2 26.5A16 16 0 0 1 46.8 26.5" fill="none" stroke="url(#hg-lens)" stroke-width="3.4" stroke-linecap="round" opacity="1" filter="url(#hg-soft)"/>
+      <path d="M20.5 39.5A14.5 14.5 0 0 0 43.5 39.5" fill="none" stroke="var(--pu)" stroke-width="1.6" stroke-linecap="round" opacity=".7" filter="url(#hg-soft)"/>
+      <g transform="translate(32 32) rotate(-9)">
+        <g clip-path="url(#hg-outside)" transform="translate(-32 -32)">
+          <g transform="translate(32 32)"><path fill-rule="evenodd" fill="url(#hg-disc)" opacity=".7" d="M-27 0a27 7.4 0 0 1 54 0a15 3.4 0 0 0 -54 0Z"/></g>
+        </g>
+      </g>
+      <!-- the event horizon: pure black, with the photon ring burning at its edge -->
+      <circle cx="32" cy="32" r="13" fill="#000"/>
+      <circle cx="32" cy="32" r="13.6" fill="none" stroke="#fff6e4" stroke-width="2.6" opacity=".55" filter="url(#hg-glow)"/>
+      <circle cx="32" cy="32" r="13.4" fill="none" stroke="#fffaf0" stroke-width="1.2"/>
+      <!-- the near side of the disc, passing in front -->
+      <g transform="translate(32 32) rotate(-9)">
+        <path d="M-29.5 0a29.5 9 0 0 0 59 0a14.5 3.9 0 0 1 -59 0Z" fill="url(#hg-disc)" opacity=".22"/>
+        <path d="M-27 0a27 7.4 0 0 0 54 0a15 3.4 0 0 1 -54 0Z" fill="url(#hg-disc)"/>
+      </g>
     </svg>
     <span class="d r">4</span>
   </div>
@@ -139,8 +170,9 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
 (function () {
   var cv = document.getElementById('sky'), cx = cv.getContext('2d');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var W = 0, H = 0, dpr = 1, hx = 0, hy = 0, hr = 40, stars = [], px = 0, py = 0, tx = 0, ty = 0, raf = 0;
+  var W = 0, H = 0, dpr = 1, hx = 0, hy = 0, hr = 40, stars = [], far = [], px = 0, py = 0, tx = 0, ty = 0, raf = 0, T = 0;
   var hole = document.getElementById('hole'), hero = document.querySelector('.hero');
+  if (reduce) Array.prototype.forEach.call(document.querySelectorAll('.shimmer'), function (n) { n.remove(); });
 
   function measure() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -164,10 +196,38 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
     measure();
     var n = Math.round(Math.min(170, Math.max(70, W * H / 9000)));
     stars = []; for (var i = 0; i < n; i++) stars.push(spawn({}, true));
+    // distant stars that stay put in the sky: the hole's gravity bends the light from the ones near it
+    var m = Math.round(Math.min(320, Math.max(120, W * H / 4500)));
+    far = []; for (var j = 0; j < m; j++) far.push({ x: Math.random() * W, y: Math.random() * H, s: 0.5 + Math.random() * 1.3, p: Math.random() * 6.28, h: Math.random() < .25 ? 1 : 0 });
+  }
+  // Gravitational lensing, in miniature: a star's light bends around the hole, so near it a star seems pushed outward
+  // (a clear ring forms just outside the hole) and smeared sideways into a short arc; far away nothing changes.
+  function lens(x, y) {
+    var dx = x - hx, dy = y - hy, d = Math.hypot(dx, dy) || 1, reach = hr * 11;
+    if (d > reach) return null;
+    if (d < hr * 1.15) return { hide: true };
+    var bend = (hr * 3.4) * (hr * 3.4) / d;                 // stronger the closer it is
+    var f = 1 - d / reach;                                   // 0 at the edge of its influence, 1 at the hole
+    var d2 = d + bend * f * f * 1.6;
+    return { x: hx + dx / d * d2, y: hy + dy / d * d2, nx: -dy / d, ny: dx / d, stretch: 1 + 9 * f * f * f, f: f };
+  }
+  function drawFar(time) {
+    var accent = cs.getPropertyValue('--ps').trim() || '#9b85ff';
+    for (var i = 0; i < far.length; i++) {
+      var s = far[i], x = s.x + px * s.s * 3, y = s.y + py * s.s * 3;
+      var tw = reduce ? .6 : 0.55 + 0.35 * Math.sin(time * 0.0011 + s.p);        // a slow twinkle
+      var L = lens(x, y), len = s.s, lw = s.s;
+      if (L) { if (L.hide) continue; x = L.x; y = L.y; len = s.s * L.stretch * 1.4; tw = Math.min(1, tw + L.f * .4); }
+      cx.globalAlpha = tw; cx.strokeStyle = s.h ? accent : '#f3f1fb'; cx.lineWidth = lw; cx.lineCap = 'round';
+      if (L && len > lw * 1.6) {                                                    // smeared along the ring around the hole
+        cx.beginPath(); cx.moveTo(x - L.nx * len, y - L.ny * len); cx.lineTo(x + L.nx * len, y + L.ny * len); cx.stroke();
+      } else { cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x + .01, y); cx.stroke(); }
+    }
   }
   var cs = getComputedStyle(document.documentElement);
-  function frame() {
+  function frame(time) {
     cx.clearRect(0, 0, W, H);
+    drawFar(time || 0);
     var accent = cs.getPropertyValue('--ps').trim() || '#9b85ff';
     px += (tx - px) * 0.04; py += (ty - py) * 0.04;
     for (var i = 0; i < stars.length; i++) {
@@ -191,15 +251,15 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
   }
   init();
   if (reduce) {                                          // a still sky: no movement at all
-    for (var k = 0; k < stars.length; k++) { var q = stars[k]; cx.globalAlpha = .4; cx.fillStyle = '#f3f1fb';
-      cx.fillRect(hx + Math.cos(q.a) * q.r, hy + Math.sin(q.a) * q.r * .62, q.s, q.s); }
+    drawFar(0);
+    setTimeout(function () { cx.clearRect(0, 0, W, H); drawFar(0); }, 1500);       // redrawn once the hole is in place
   } else {
     frame();
     document.addEventListener('visibilitychange', function () { if (document.hidden) cancelAnimationFrame(raf); else frame(); });
     addEventListener('pointermove', function (e) { tx = (e.clientX / W - .5) * 2; ty = (e.clientY / H - .5) * 2; }, { passive: true });
   }
   var rt; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(init, 150); });
-  setTimeout(measure, 1400);                             // the hole has settled into place by now
+  setTimeout(function () { measure(); }, 1400);                             // the hole has settled into place by now
   hole.addEventListener('click', function () {
     var r = document.createElement('span'); r.className = 'ripple'; hero.appendChild(r);
     setTimeout(function () { r.remove(); }, 1300);

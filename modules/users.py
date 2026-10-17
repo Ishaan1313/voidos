@@ -51,7 +51,7 @@ DEFAULT_SETTINGS = {
     "display_name": "",
     "show_blobs": True,
     "sidebar_pinned": False,
-    "theme": "horizon",
+    "theme": "void",
     "blob_speed": "slow",
     # Clock format on the home screen and top bar: "12" (default) or "24".
     "time_format": "12",
