@@ -68,8 +68,10 @@ export default {
   },
 };
 
-// The page shown when the tunnel is down. Same purple Void OS look as the dashboard's own 404 page; it carries
-// everything inline (a Worker can't serve static files), tries again by itself every 10 seconds, and escapes the message.
+// The page shown when the tunnel is down. It is the same design as the dashboard's own 404 page: the purple black hole,
+// stars bent and swirled by its gravity, and a shockwave when you click the hole or the button. The status code is the
+// "4 0 4" of that page (here 5 0 3, 5 0 2 ...). It carries everything inline (a Worker can't serve files), tries again by
+// itself every 10 seconds, and escapes the message it shows.
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
@@ -79,40 +81,305 @@ function offline(message, status) {
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex">
 <title>Void OS is offline</title>
 <style>
-:root{--bg:#0a0a12;--pu:#6d4aff;--pu-rgb:109,74,255;--ps:#9b85ff;--pd:#4a3aa8;--tx:#f3f1fb;--td:#9a95a8;--tm:#9690a6}
-*{margin:0;padding:0;box-sizing:border-box}
-body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px 20px;overflow-x:hidden;
-  background:var(--bg);color:var(--tx);font:15px/1.6 "Sora","Segoe UI",system-ui,-apple-system,sans-serif;text-align:center}
-.glowA,.glowB{position:fixed;border-radius:50%;filter:blur(90px);opacity:.3;pointer-events:none;z-index:0}
-.glowA{width:480px;height:480px;top:-14%;left:-10%;background:radial-gradient(circle,var(--pu),transparent 70%)}
-.glowB{width:400px;height:400px;bottom:-16%;right:-8%;background:radial-gradient(circle,var(--ps),transparent 70%)}
-main{position:relative;z-index:1;max-width:520px;width:100%}
-svg{width:clamp(110px,30vw,150px);height:auto;display:block;margin:0 auto 14px;overflow:visible;color:var(--tx)}
-.pulse{transform-origin:32px 32px;animation:pulse 5s ease-in-out infinite alternate}
-@keyframes pulse{from{opacity:.75;transform:scale(.97)}to{opacity:1;transform:scale(1.04)}}
-h1{font-size:clamp(22px,5vw,28px);font-weight:650;letter-spacing:-.02em;margin-bottom:10px}
-p{color:var(--td);max-width:430px;margin:0 auto}
-.code{display:inline-block;margin-top:14px;padding:4px 12px;border-radius:999px;font:12.5px ui-monospace,Menlo,Consolas,monospace;
-  color:var(--ps);background:rgba(var(--pu-rgb),.1);border:1px solid rgba(var(--pu-rgb),.22)}
-button{margin-top:26px;font:inherit;font-size:14.5px;font-weight:600;color:#fff;cursor:pointer;padding:11px 24px;border-radius:12px;border:0;
-  background:linear-gradient(135deg,var(--pu),var(--ps));box-shadow:0 8px 26px rgba(var(--pu-rgb),.35)}
-button:focus-visible{outline:2px solid var(--ps);outline-offset:3px}
-.retry{margin-top:14px;font-size:13px;color:var(--tm)}
-@media (prefers-reduced-motion:reduce){.pulse{animation:none}}
+
+/* This page is always the purple Void OS look, and carries its own colours, so it renders properly even when it is
+   opened on its own or the stylesheet isn't reachable. */
+:root { --bg:#0a0a12; --bg-rgb:10,10,18; --pu:#6d4aff; --pu-rgb:109,74,255; --ps:#9b85ff; --pd:#4a3aa8;
+        --tx:#f3f1fb; --td:#9a95a8; --tm:#9690a6; }
+
+* { padding: 0; margin: 0; box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--tx);
+  font-family: "Sora", "Segoe UI", system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+}
+
+/* Ambient light: soft glows that drift (transform-only, off for reduced motion). */
+.blobs { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .3; will-change: transform; }
+.b1 { width: 500px; height: 500px; background: radial-gradient(circle, var(--pu), transparent 70%); top: -14%; left: -10%; animation: d1 26s ease-in-out infinite alternate; }
+.b2 { width: 420px; height: 420px; background: radial-gradient(circle, var(--ps), transparent 70%); bottom: -16%; right: -8%; animation: d2 32s ease-in-out infinite alternate; }
+.b3 { width: 300px; height: 300px; background: radial-gradient(circle, var(--pd), transparent 70%); top: 40%; left: 58%; animation: d3 38s ease-in-out infinite alternate; }
+@keyframes d1 { 0% { transform: translate3d(-5%, -5%, 0); } to { transform: translate3d(9%, 13%, 0) scale(1.1); } }
+@keyframes d2 { 0% { transform: translate3d(9%, 7%, 0) scale(1.06); } to { transform: translate3d(-11%, -5%, 0) scale(.93); } }
+@keyframes d3 { 0% { transform: translate3d(0, 14%, 0) scale(.86); } to { transform: translate3d(-12%, -9%, 0) scale(1.16); } }
+
+.content { position: relative; z-index: 2; width: 100%; max-width: 640px; text-align: center; }
+
+/* 4 (black hole) 4: the zero is the logo's black hole */
+.hero {
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(96px, 26vw, 210px);
+  font-weight: 800; line-height: 1; letter-spacing: -.04em;
+  margin-bottom: 8px;
+}
+.hero .d {
+  background: linear-gradient(160deg, var(--ps), var(--pu) 60%, var(--pd));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 8px 32px rgba(var(--pu-rgb), .35));
+}
+.hero svg { width: 1.08em; height: 1.08em; margin: 0 -.06em; flex: none; overflow: visible; color: var(--tx); }
+.hero .glow { transform-origin: 32px 32px; animation: pulse 5s ease-in-out infinite alternate; }
+#sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+.hero { position: relative; }
+.hero .d { display: inline-block; will-change: transform; }
+.hero .d.l { animation: slideL 1s cubic-bezier(.2, .9, .25, 1) .1s both, bob 7s ease-in-out 1.2s infinite alternate; }
+.hero .d.r { animation: slideR 1s cubic-bezier(.2, .9, .25, 1) .1s both, bob 7s ease-in-out 2.2s infinite alternate-reverse; }
+.hero svg { animation: grow 1.1s cubic-bezier(.2, .9, .25, 1) .25s both; cursor: pointer; }
+@keyframes slideL { from { opacity: 0; transform: translateX(-90px) rotate(-8deg); filter: blur(10px); } to { opacity: 1; transform: none; } }
+@keyframes slideR { from { opacity: 0; transform: translateX(90px) rotate(8deg); filter: blur(10px); } to { opacity: 1; transform: none; } }
+@keyframes grow { from { opacity: 0; transform: scale(.2) rotate(-90deg); filter: blur(10px); } to { opacity: 1; transform: none; } }
+@keyframes bob { from { transform: translateY(-5px); } to { transform: translateY(6px); } }
+/* a gentle ripple leaves the hole when it is clicked */
+.ripple { position: absolute; left: 50%; top: 50%; width: 1.08em; height: 1.08em; margin: -.54em 0 0 -.54em; border-radius: 50%;
+  border: 2px solid var(--ps); opacity: 0; pointer-events: none; animation: ripple 1.2s ease-out forwards; }
+@keyframes ripple { from { opacity: .8; transform: scale(.5); } to { opacity: 0; transform: scale(3.2); } }
+.hero .glow, .hero .disc { transition: transform .4s ease; }
+.gas { animation: gasflow 9s linear infinite; }
+.gas.g1 { animation-duration: 6.5s; }
+.gas.g2 { animation-duration: 4.5s; }
+@keyframes gasflow { to { stroke-dashoffset: -41; } }
+@keyframes pulse { from { opacity: .75; transform: scale(.97); } to { opacity: 1; transform: scale(1.04); } }
+
+h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02em; margin: 6px 0 10px; }
+.sub { color: var(--td); font-size: 15px; line-height: 1.6; max-width: 460px; margin: 0 auto; }
+.path {
+  display: inline-block; max-width: 100%; margin: 18px auto 0; padding: 6px 12px; border-radius: 10px;
+  font: 13px/1.4 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--ps); background: rgba(var(--pu-rgb), .1); border: 1px solid rgba(var(--pu-rgb), .22);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top;
+}
+.path:empty { display: none; }
+
+.actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+.btn {
+  font: inherit; font-size: 14.5px; font-weight: 600; text-decoration: none; cursor: pointer;
+  padding: 11px 22px; border-radius: 12px; border: 1px solid transparent;
+  transition: transform .15s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.btn:active { transform: scale(.97); }
+.btn:focus-visible { outline: 2px solid var(--ps); outline-offset: 3px; }
+.btn.p { background: linear-gradient(135deg, var(--pu), var(--ps)); color: #fff; box-shadow: 0 8px 26px rgba(var(--pu-rgb), .35); }
+.btn.p:hover { box-shadow: 0 10px 34px rgba(var(--pu-rgb), .5); transform: translateY(-1px); }
+.btn.g { background: rgba(var(--pu-rgb), .08); color: var(--tx); border-color: rgba(var(--pu-rgb), .3); }
+.btn.g:hover { background: rgba(var(--pu-rgb), .16); }
+
+.quote { margin-top: 44px; font-size: 12.5px; color: var(--tm); line-height: 1.6; }
+.quote b { font-weight: 500; color: var(--td); }
+
+/* entrance */
+.js .rise { opacity: 0; transform: translateY(14px); filter: blur(8px); animation: rise .8s cubic-bezier(.2, .8, .2, 1) forwards; animation-delay: calc(var(--n, 0) * 110ms + 80ms); }
+@keyframes rise { to { opacity: 1; transform: none; filter: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .blob, .hero .glow, .hero .d, .hero svg, .ripple, .gas { animation: none !important; }
+  .js .rise { animation: none !important; opacity: 1; transform: none; filter: none; }
+}
 </style></head><body>
-<div class="glowA"></div><div class="glowB"></div>
-<main>
-<svg viewBox="0 0 64 64" role="img" aria-label="Void OS"><g class="pulse"><path fill-rule="evenodd" fill="var(--pu)" fill-opacity=".5" d="M11.1 32a20.9 20.9 0 1 0 41.8 0a20.9 20.9 0 1 0 -41.8 0Z M15.9 32a16.1 16.1 0 1 0 32.2 0a16.1 16.1 0 1 0 -32.2 0Z"/></g>
-<g transform="translate(32 32) rotate(-10)"><clipPath id="far"><path clip-rule="evenodd" d="M-80 -80H80V80H-80Z M-16.9 0a16.9 16.9 0 1 0 33.8 0a16.9 16.9 0 1 0 -33.8 0Z"/></clipPath><path d="M-27 0A27 6.4 0 0 1 27 0Z" fill="var(--pu)" fill-opacity=".55" clip-path="url(#far)"/></g>
-<circle cx="32" cy="32" r="13" fill="none" stroke="currentColor" stroke-width="3.8"/>
-<g transform="translate(32 32) rotate(-10)"><path d="M-27 0A27 6.4 0 0 0 27 0Z" fill="var(--pu)"/></g></svg>
-<h1>Void OS is offline</h1>
-<p>${esc(message)}</p>
-<span class="code">${Number(status)}</span><br>
-<button type="button" onclick="location.reload()">Try again now</button>
-<p class="retry" id="r">Trying again in 10 seconds&hellip;</p>
+<div class="blobs" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+<canvas id="sky" aria-hidden="true"></canvas>
+<main class="content">
+  <div class="hero rise" style="--n:0" role="img" aria-label="Error ${Number(status)}">
+    <span class="d l">${String(Number(status))[0]}</span>
+    <svg viewBox="0 0 64 64" aria-hidden="true" id="hole">
+      <defs>
+        <radialGradient id="hg-halo" cx="50%" cy="50%" r="50%">
+          <stop offset=".34" stop-color="var(--pu)" stop-opacity="0"/><stop offset=".47" stop-color="var(--ps)" stop-opacity=".55"/>
+          <stop offset=".62" stop-color="var(--pu)" stop-opacity=".22"/><stop offset="1" stop-color="var(--pu)" stop-opacity="0"/>
+        </radialGradient>
+        <!-- the disc is hotter and brighter on the side that is rushing towards us (relativistic beaming), and it shimmers slowly -->
+        <linearGradient id="hg-disc" x1="0" y1="0" x2="1" y2="0" spreadMethod="reflect">
+          <stop offset="0" stop-color="#fff4dc"/><stop offset=".22" stop-color="#ffd9a8"/><stop offset=".45" stop-color="var(--ps)"/>
+          <stop offset=".75" stop-color="var(--pu)"/><stop offset="1" stop-color="var(--pd)"/>
+          <animateTransform class="shimmer" attributeName="gradientTransform" type="translate" values="-.12 0;.12 0;-.12 0" dur="9s" repeatCount="indefinite"/>
+        </linearGradient>
+        <linearGradient id="hg-hot" x1="0" y1="0" x2="1" y2="0" spreadMethod="reflect">
+          <stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#fff0d2"/><stop offset=".7" stop-color="#ffd2a0"/><stop offset="1" stop-color="var(--ps)"/>
+          <animateTransform class="shimmer" attributeName="gradientTransform" type="translate" values=".08 0;-.08 0;.08 0" dur="7s" repeatCount="indefinite"/>
+        </linearGradient>
+        <linearGradient id="hg-outer" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="var(--ps)"/><stop offset=".5" stop-color="var(--pu)"/><stop offset="1" stop-color="var(--pd)"/>
+        </linearGradient>
+        <linearGradient id="hg-lens" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff4dc"/><stop offset=".5" stop-color="var(--ps)"/><stop offset="1" stop-color="var(--pu)"/>
+        </linearGradient>
+        <filter id="hg-soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation=".9"/></filter>
+        <filter id="hg-glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.6"/></filter>
+        <clipPath id="hg-outside" clipPathUnits="userSpaceOnUse"><path clip-rule="evenodd" d="M-80 -80H144V144H-80Z M19 32a13 13 0 1 0 26 0a13 13 0 1 0 -26 0Z"/></clipPath>
+      </defs>
+      <g class="glow"><circle cx="32" cy="32" r="31" fill="url(#hg-halo)"/></g>
+      <!-- the far side of the disc, bent over the top and under the bottom of the hole by its gravity -->
+      <path d="M17.2 26.5A16 16 0 0 1 46.8 26.5" fill="none" stroke="url(#hg-lens)" stroke-width="4.2" stroke-linecap="round" opacity="1" filter="url(#hg-soft)"/>
+      <path d="M20.5 39.5A14.5 14.5 0 0 0 43.5 39.5" fill="none" stroke="var(--pu)" stroke-width="1.6" stroke-linecap="round" opacity=".7" filter="url(#hg-soft)"/>
+      <g transform="translate(32 32) rotate(-9)">
+        <g clip-path="url(#hg-outside)" transform="translate(-32 -32)">
+          <g transform="translate(32 32)"><path d="M-31.5 0A31.5 9.6 0 0 1 31.5 0L25.5 0A25.5 7.2 0 0 0 -25.5 0Z" fill="url(#hg-outer)" opacity="0.6"/><path d="M-25.5 0A25.5 7.2 0 0 1 25.5 0L20.5 0A20.5 5.0 0 0 0 -20.5 0Z" fill="url(#hg-disc)" opacity="0.95"/><path d="M-20.5 0A20.5 5.0 0 0 1 20.5 0L16.0 0A16.0 3.3 0 0 0 -16.0 0Z" fill="url(#hg-hot)" opacity="1"/><path class="gas g0" d="M-28.5 0A28.5 8.4 0 0 1 28.5 0" fill="none" stroke="#fffaf0" stroke-opacity="0.50" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/><path class="gas g1" d="M-23 0A23 6.1 0 0 1 23 0" fill="none" stroke="#fffaf0" stroke-opacity="0.40" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/><path class="gas g2" d="M-18.2 0A18.2 4.1 0 0 1 18.2 0" fill="none" stroke="#fffaf0" stroke-opacity="0.30" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/></g>
+        </g>
+      </g>
+      <!-- the event horizon: pure black, with the photon ring burning at its edge -->
+      <circle cx="32" cy="32" r="13" fill="#000"/>
+      <circle cx="32" cy="32" r="13.6" fill="none" stroke="#fff6e4" stroke-width="2.6" opacity=".55" filter="url(#hg-glow)"/>
+      <circle cx="32" cy="32" r="13.4" fill="none" stroke="#fffaf0" stroke-width="1.2"/>
+      <!-- the near side of the disc, passing in front -->
+      <g transform="translate(32 32) rotate(-9)"><path d="M-31.5 0A31.5 9.6 0 0 0 31.5 0L25.5 0A25.5 7.2 0 0 1 -25.5 0Z" fill="url(#hg-outer)" opacity="0.6"/><path d="M-25.5 0A25.5 7.2 0 0 0 25.5 0L20.5 0A20.5 5.0 0 0 1 -20.5 0Z" fill="url(#hg-disc)" opacity="0.95"/><path d="M-20.5 0A20.5 5.0 0 0 0 20.5 0L16.0 0A16.0 3.3 0 0 1 -16.0 0Z" fill="url(#hg-hot)" opacity="1"/><path class="gas g0" d="M-28.5 0A28.5 8.4 0 0 0 28.5 0" fill="none" stroke="#fffaf0" stroke-opacity="0.50" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/><path class="gas g1" d="M-23 0A23 6.1 0 0 0 23 0" fill="none" stroke="#fffaf0" stroke-opacity="0.40" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/><path class="gas g2" d="M-18.2 0A18.2 4.1 0 0 0 18.2 0" fill="none" stroke="#fffaf0" stroke-opacity="0.30" stroke-width=".6" stroke-linecap="round" stroke-dasharray="7 5 2 9 12 6"/></g>
+    </svg>
+    <span class="d r">${String(Number(status))[2] || 0}</span>
+  </div>
+  <h1 class="rise" style="--n:1">Void OS is offline</h1>
+  <p class="sub rise" style="--n:2">${esc(message)}</p>
+  <div class="actions rise" style="--n:3"><button class="btn p" type="button" id="retry">Try again now</button></div>
+  <p class="quote rise" style="--n:4" id="r">Trying again in 10 seconds…</p>
 </main>
-<script>var n=10,el=document.getElementById('r');setInterval(function(){n--;if(n<=0){location.reload();return}el.textContent='Trying again in '+n+' second'+(n===1?'':'s')+'\u2026'},1000)</script>
+<script>
+(function () {
+  var cv = document.getElementById('sky'), cx = cv.getContext('2d');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var W = 0, H = 0, dpr = 1, hx = 0, hy = 0, hr = 40, stars = [], far = [], px = 0, py = 0, tx = 0, ty = 0, raf = 0, T = 0;
+  var hole = document.getElementById('hole'), hero = document.querySelector('.hero');
+  if (reduce) Array.prototype.forEach.call(document.querySelectorAll('.shimmer'), function (n) { n.remove(); });
+
+  function measure() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var r = hole.getBoundingClientRect();
+    hx = r.left + r.width / 2; hy = r.top + r.height / 2; hr = r.width * 0.2;
+  }
+  function maxR() { return Math.hypot(Math.max(hx, W - hx), Math.max(hy, H - hy)); }
+  function spawn(star, anywhere) {
+    var R = maxR();
+    star.a = Math.random() * Math.PI * 2;
+    star.r = anywhere ? hr * 2 + Math.random() * R : R * (0.85 + Math.random() * 0.15);
+    star.s = 0.4 + Math.random() * 1.5;                   // size
+    star.k = 0.6 + Math.random() * 0.8;                   // personal speed
+    star.hue = Math.random() < .35 ? 1 : 0;               // some take the accent colour
+    star.pa = star.a; star.pr = star.r;
+    star.o = 0; star.v = 0;                               // push from a shockwave (see springStep)
+    return star;
+  }
+  function init() {
+    measure();
+    var n = Math.round(Math.min(170, Math.max(70, W * H / 9000)));
+    stars = []; for (var i = 0; i < n; i++) stars.push(spawn({}, true));
+    // distant stars that stay put in the sky: the hole's gravity bends the light from the ones near it
+    var m = Math.round(Math.min(320, Math.max(120, W * H / 4500)));
+    far = []; for (var j = 0; j < m; j++) { var fx = Math.random() * W, fy = Math.random() * H;
+      far.push({ a: Math.atan2(fy - hy, fx - hx), r: Math.hypot(fx - hx, fy - hy), s: 0.5 + Math.random() * 1.3, p: Math.random() * 6.28, h: Math.random() < .25 ? 1 : 0, o: 0, v: 0 }); }
+  }
+  // Gravitational lensing, in miniature: a star's light bends around the hole, so near it a star seems pushed outward
+  // (a clear ring forms just outside the hole) and smeared sideways into a short arc; far away nothing changes.
+  function lens(x, y) {
+    var dx = x - hx, dy = y - hy, d = Math.hypot(dx, dy) || 1, reach = hr * 11;
+    if (d > reach) return null;
+    if (d < hr * 1.15) return { hide: true };
+    var bend = (hr * 3.4) * (hr * 3.4) / d;                 // stronger the closer it is
+    var f = 1 - d / reach;                                   // 0 at the edge of its influence, 1 at the hole
+    var d2 = d + bend * f * f * 1.6;
+    return { x: hx + dx / d * d2, y: hy + dy / d * d2, nx: -dy / d, ny: dx / d, stretch: 1 + 9 * f * f * f, f: f };
+  }
+  var shockAt = 0, sR0 = 0, sR1 = 0, lastF = 0;
+  function shockStep(time) {
+    sR0 = sR1;
+    if (!shockAt) { sR0 = sR1 = 0; return; }
+    var tt = (time - shockAt) / 1000;
+    if (tt > 2.4) { shockAt = 0; sR0 = sR1 = 0; return; }
+    sR1 = 560 * tt;                                                   // the wavefront, in pixels from the hole
+  }
+  // A star the wavefront just crossed gets a kick outward; then it is a spring pulled back to where it was (the hole's gravity).
+  function springStep(s, dts) {
+    if (sR1 > sR0 && s.r >= sR0 && s.r < sR1) s.v += 720 / (1 + s.r / 240);
+    if (s.o || s.v) {
+      s.v += (-20 * s.o - 3.4 * s.v) * dts; s.o += s.v * dts;
+      if (Math.abs(s.o) < .02 && Math.abs(s.v) < .5) { s.o = 0; s.v = 0; }
+    }
+  }
+  var lastT = 0;
+  function drawFar(time) {
+    var accent = cs.getPropertyValue('--ps').trim() || '#9b85ff';
+    var dt = lastT ? Math.min(50, time - lastT) : 0; lastT = time;
+    for (var i = 0; i < far.length; i++) {
+      var s = far[i];
+      // the sky turns slowly around the hole, and much faster close to it, so the bent starlight visibly flows around the ring
+      if (dt && !reduce) springStep(s, dt / 1000);
+      var rr = Math.max(0, s.r + s.o);
+      if (dt && !reduce) s.a += dt * 0.00003 * (1 + 3 * Math.pow(hr * 6 / Math.max(s.r, hr * 1.2), 2));
+      var x = hx + Math.cos(s.a) * rr + px * s.s * 3, y = hy + Math.sin(s.a) * rr + py * s.s * 3;
+      if (x < -30 || x > W + 30 || y < -30 || y > H + 30) continue;
+      var tw = reduce ? .6 : 0.55 + 0.35 * Math.sin(time * 0.0011 + s.p);        // a slow twinkle
+      var L = lens(x, y), len = s.s, lw = s.s;
+      if (L) { if (L.hide) continue; x = L.x; y = L.y; len = s.s * L.stretch * 1.4; tw = Math.min(1, tw + L.f * .4); }
+      cx.globalAlpha = tw; cx.strokeStyle = s.h ? accent : '#f3f1fb'; cx.lineWidth = lw; cx.lineCap = 'round';
+      if (L && len > lw * 1.6) {                                                    // smeared along the ring around the hole
+        cx.beginPath(); cx.moveTo(x - L.nx * len, y - L.ny * len); cx.lineTo(x + L.nx * len, y + L.ny * len); cx.stroke();
+      } else { cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x + .01, y); cx.stroke(); }
+    }
+  }
+  var cs = getComputedStyle(document.documentElement);
+  function frame(time) {
+    cx.clearRect(0, 0, W, H);
+    var fdt = lastF ? Math.min(.05, ((time || 0) - lastF) / 1000) : .016; lastF = time || 0;
+    shockStep(time || 0);
+    drawFar(time || 0);
+    var accent = cs.getPropertyValue('--ps').trim() || '#9b85ff';
+    px += (tx - px) * 0.04; py += (ty - py) * 0.04;
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      s.pa = s.a; s.pr = s.r; var po = s.o;
+      // closer = faster (like orbiting matter), and everything slowly falls in
+      var sp = 0.0016 * s.k * (1 + 260 / (s.r + 40));
+      s.a += sp;
+      s.r -= (0.05 + 6 / (s.r + 20)) * s.k;
+      if (s.r < hr) { spawn(s, false); continue; }
+      springStep(s, fdt);
+      var rE = Math.max(hr * 1.05, s.r + s.o), pE = Math.max(hr * 1.05, s.pr + po);
+      var x = hx + Math.cos(s.a) * rE + px * (s.s * 6), y = hy + Math.sin(s.a) * rE * 0.62 + py * (s.s * 6);   // seen at a slant, like the disc
+      var x0 = hx + Math.cos(s.pa) * pE + px * (s.s * 6), y0 = hy + Math.sin(s.pa) * pE * 0.62 + py * (s.s * 6);
+      var near = Math.max(0, 1 - (s.r - hr) / (hr * 7));                       // fades into the hole
+      var alpha = (0.25 + 0.55 * Math.min(1, s.r / (hr * 4))) * (1 - near * 0.35);
+      cx.strokeStyle = s.hue ? accent : '#f3f1fb';
+      cx.globalAlpha = alpha; cx.lineWidth = s.s * (1 - near * 0.5); cx.lineCap = 'round';
+      cx.beginPath(); cx.moveTo(x0, y0); cx.lineTo(x + 0.01, y); cx.stroke();
+    }
+    cx.globalAlpha = 1;
+    raf = requestAnimationFrame(frame);
+  }
+  init();
+  if (reduce) {                                          // a still sky: no movement at all
+    drawFar(0);
+    setTimeout(function () { cx.clearRect(0, 0, W, H); drawFar(0); }, 1500);       // redrawn once the hole is in place
+  } else {
+    frame();
+    document.addEventListener('visibilitychange', function () { if (document.hidden) cancelAnimationFrame(raf); else frame(); });
+    addEventListener('pointermove', function (e) { tx = (e.clientX / W - .5) * 2; ty = (e.clientY / H - .5) * 2; }, { passive: true });
+  }
+  var rt; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(init, 150); });
+  setTimeout(function () { measure(); }, 1400);                             // the hole has settled into place by now
+  // The ripple and the shockwave: from the hole itself, and from the two buttons too (they wait a beat so you see it).
+  function fire() {
+    var r = document.createElement('span'); r.className = 'ripple'; hero.appendChild(r);
+    if (!reduce) { shockAt = performance.now(); sR0 = sR1 = 0; }                       // and shove the stars
+    setTimeout(function () { r.remove(); }, 1300);
+  }
+  hole.addEventListener('click', fire);
+  window.voidFire = function (go) { fire(); if (reduce) go(); else setTimeout(go, 520); };
+
+})();
+</script>
+<script>(function(){var n=10,el=document.getElementById('r'),btn=document.getElementById('retry');
+function go(){location.reload()}
+btn.addEventListener('click',function(){btn.disabled=true;if(window.voidFire)window.voidFire(go);else go()});
+setInterval(function(){n--;if(n<=0){go();return}el.textContent='Trying again in '+n+' second'+(n===1?'':'s')+'…'},1000)})();</script>
+<script>(function(){var b=document.querySelectorAll('.blob');if(!b.length)return;
+  var r=function(a,z){return a+Math.random()*(z-a)},sg=function(){return Math.random()<.5?-1:1};
+  b.forEach(function(el){
+    el.style.left=r(-5,85).toFixed(1)+'%';el.style.top=r(-5,85).toFixed(1)+'%';el.style.right='auto';el.style.bottom='auto';
+    el.style.animationDelay='-'+r(0,20).toFixed(1)+'s';
+  });})();</script>
 </body></html>`;
   return new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "10" } });
 }
