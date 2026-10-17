@@ -198,6 +198,7 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
     star.k = 0.6 + Math.random() * 0.8;                   // personal speed
     star.hue = Math.random() < .35 ? 1 : 0;               // some take the accent colour
     star.pa = star.a; star.pr = star.r;
+    star.o = 0; star.v = 0;                               // push from a shockwave (see springStep)
     return star;
   }
   function init() {
@@ -206,7 +207,8 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
     stars = []; for (var i = 0; i < n; i++) stars.push(spawn({}, true));
     // distant stars that stay put in the sky: the hole's gravity bends the light from the ones near it
     var m = Math.round(Math.min(320, Math.max(120, W * H / 4500)));
-    far = []; for (var j = 0; j < m; j++) far.push({ x: Math.random() * W, y: Math.random() * H, s: 0.5 + Math.random() * 1.3, p: Math.random() * 6.28, h: Math.random() < .25 ? 1 : 0 });
+    far = []; for (var j = 0; j < m; j++) { var fx = Math.random() * W, fy = Math.random() * H;
+      far.push({ a: Math.atan2(fy - hy, fx - hx), r: Math.hypot(fx - hx, fy - hy), s: 0.5 + Math.random() * 1.3, p: Math.random() * 6.28, h: Math.random() < .25 ? 1 : 0, o: 0, v: 0 }); }
   }
   // Gravitational lensing, in miniature: a star's light bends around the hole, so near it a star seems pushed outward
   // (a clear ring forms just outside the hole) and smeared sideways into a short arc; far away nothing changes.
@@ -219,10 +221,34 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
     var d2 = d + bend * f * f * 1.6;
     return { x: hx + dx / d * d2, y: hy + dy / d * d2, nx: -dy / d, ny: dx / d, stretch: 1 + 9 * f * f * f, f: f };
   }
+  var shockAt = 0, sR0 = 0, sR1 = 0, lastF = 0;
+  function shockStep(time) {
+    sR0 = sR1;
+    if (!shockAt) { sR0 = sR1 = 0; return; }
+    var tt = (time - shockAt) / 1000;
+    if (tt > 2.4) { shockAt = 0; sR0 = sR1 = 0; return; }
+    sR1 = 560 * tt;                                                   // the wavefront, in pixels from the hole
+  }
+  // A star the wavefront just crossed gets a kick outward; then it is a spring pulled back to where it was (the hole's gravity).
+  function springStep(s, dts) {
+    if (sR1 > sR0 && s.r >= sR0 && s.r < sR1) s.v += 720 / (1 + s.r / 240);
+    if (s.o || s.v) {
+      s.v += (-20 * s.o - 3.4 * s.v) * dts; s.o += s.v * dts;
+      if (Math.abs(s.o) < .02 && Math.abs(s.v) < .5) { s.o = 0; s.v = 0; }
+    }
+  }
+  var lastT = 0;
   function drawFar(time) {
     var accent = cs.getPropertyValue('--ps').trim() || '#9b85ff';
+    var dt = lastT ? Math.min(50, time - lastT) : 0; lastT = time;
     for (var i = 0; i < far.length; i++) {
-      var s = far[i], x = s.x + px * s.s * 3, y = s.y + py * s.s * 3;
+      var s = far[i];
+      // the sky turns slowly around the hole, and much faster close to it, so the bent starlight visibly flows around the ring
+      if (dt && !reduce) springStep(s, dt / 1000);
+      var rr = Math.max(0, s.r + s.o);
+      if (dt && !reduce) s.a += dt * 0.00003 * (1 + 3 * Math.pow(hr * 6 / Math.max(s.r, hr * 1.2), 2));
+      var x = hx + Math.cos(s.a) * rr + px * s.s * 3, y = hy + Math.sin(s.a) * rr + py * s.s * 3;
+      if (x < -30 || x > W + 30 || y < -30 || y > H + 30) continue;
       var tw = reduce ? .6 : 0.55 + 0.35 * Math.sin(time * 0.0011 + s.p);        // a slow twinkle
       var L = lens(x, y), len = s.s, lw = s.s;
       if (L) { if (L.hide) continue; x = L.x; y = L.y; len = s.s * L.stretch * 1.4; tw = Math.min(1, tw + L.f * .4); }
@@ -235,19 +261,23 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
   var cs = getComputedStyle(document.documentElement);
   function frame(time) {
     cx.clearRect(0, 0, W, H);
+    var fdt = lastF ? Math.min(.05, ((time || 0) - lastF) / 1000) : .016; lastF = time || 0;
+    shockStep(time || 0);
     drawFar(time || 0);
     var accent = cs.getPropertyValue('--ps').trim() || '#9b85ff';
     px += (tx - px) * 0.04; py += (ty - py) * 0.04;
     for (var i = 0; i < stars.length; i++) {
       var s = stars[i];
-      s.pa = s.a; s.pr = s.r;
+      s.pa = s.a; s.pr = s.r; var po = s.o;
       // closer = faster (like orbiting matter), and everything slowly falls in
       var sp = 0.0016 * s.k * (1 + 260 / (s.r + 40));
       s.a += sp;
       s.r -= (0.05 + 6 / (s.r + 20)) * s.k;
       if (s.r < hr) { spawn(s, false); continue; }
-      var x = hx + Math.cos(s.a) * s.r + px * (s.s * 6), y = hy + Math.sin(s.a) * s.r * 0.62 + py * (s.s * 6);   // seen at a slant, like the disc
-      var x0 = hx + Math.cos(s.pa) * s.pr + px * (s.s * 6), y0 = hy + Math.sin(s.pa) * s.pr * 0.62 + py * (s.s * 6);
+      springStep(s, fdt);
+      var rE = Math.max(hr * 1.05, s.r + s.o), pE = Math.max(hr * 1.05, s.pr + po);
+      var x = hx + Math.cos(s.a) * rE + px * (s.s * 6), y = hy + Math.sin(s.a) * rE * 0.62 + py * (s.s * 6);   // seen at a slant, like the disc
+      var x0 = hx + Math.cos(s.pa) * pE + px * (s.s * 6), y0 = hy + Math.sin(s.pa) * pE * 0.62 + py * (s.s * 6);
       var near = Math.max(0, 1 - (s.r - hr) / (hr * 7));                       // fades into the hole
       var alpha = (0.25 + 0.55 * Math.min(1, s.r / (hr * 4))) * (1 - near * 0.35);
       cx.strokeStyle = s.hue ? accent : '#f3f1fb';
@@ -268,18 +298,30 @@ h1 { font-size: clamp(22px, 4.4vw, 30px); font-weight: 650; letter-spacing: -.02
   }
   var rt; addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(init, 150); });
   setTimeout(function () { measure(); }, 1400);                             // the hole has settled into place by now
-  hole.addEventListener('click', function () {
+  // The ripple and the shockwave: from the hole itself, and from the two buttons too (they wait a beat so you see it).
+  function fire() {
     var r = document.createElement('span'); r.className = 'ripple'; hero.appendChild(r);
+    if (!reduce) { shockAt = performance.now(); sR0 = sR1 = 0; }                       // and shove the stars
     setTimeout(function () { r.remove(); }, 1300);
-  });
+  }
+  hole.addEventListener('click', fire);
+  window.voidFire = function (go) { fire(); if (reduce) go(); else setTimeout(go, 520); };
 
   // Show what was asked for (as text, never as markup), and make "Go back" do the sensible thing.
   var p = document.getElementById('path');
   try { p.textContent = decodeURIComponent(location.pathname + location.search).slice(0, 160); } catch (e) { p.textContent = location.pathname.slice(0, 160); }
   var b = document.getElementById('back');
   b.addEventListener('click', function () {
-    if (history.length > 1 && document.referrer && new URL(document.referrer).origin === location.origin) history.back();
-    else location.href = '/';
+    window.voidFire(function () {
+      if (history.length > 1 && document.referrer && new URL(document.referrer).origin === location.origin) history.back();
+      else location.href = '/';
+    });
+  });
+  var home = document.querySelector('a.btn.p');
+  home.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;     // new tab etc.: leave it alone
+    e.preventDefault();
+    window.voidFire(function () { location.href = home.getAttribute('href'); });
   });
 })();
 </script>
