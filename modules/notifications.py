@@ -92,6 +92,65 @@ _NTFY_TOPIC_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _NTFY_MAX = 3500
 
 
+# The emoji at the start of a title becomes ntfy's own icon (a "tag"), so it is shown once, in the app's style,
+# instead of being repeated inside the title text. 🚨 is urgent (priority 5), ⚠️ high (4), most others normal.
+_NTFY_TAGS = {"\U0001F6A8": ("rotating_light", 5), "\u26a0": ("warning", 4), "\u2705": ("white_check_mark", 3),
+              "\U0001F513": ("unlock", 3), "\U0001F464": ("bust_in_silhouette", 3), "\U0001F5D1": ("wastebasket", 3),
+              "\U0001F511": ("key", 3), "\U0001F6E1": ("shield", 3), "\u2699": ("gear", 3), "\u21a9": ("leftwards_arrow_with_hook", 3),
+              "\U0001F9E9": ("jigsaw", 3), "\U0001F310": ("globe_with_meridians", 3), "\U0001F389": ("tada", 3),
+              "\U0001F451": ("crown", 3), "\U0001F512": ("lock", 3), "\U0001F4BE": ("floppy_disk", 4),
+              "\U0001F9F9": ("broom", 3), "\U0001F4BD": ("minidisc", 4), "\U0001F4E6": ("package", 4), "\u2601": ("cloud", 4)}
+
+
+def _ntfy_title(title: str) -> tuple:
+    t = title.strip()
+    if t[:1] in _NTFY_TAGS:
+        tag, prio = _NTFY_TAGS[t[:1]]
+        return (t[1:].lstrip("\ufe0f\u200d ").strip() or t), tag, prio
+    return t, "bell", 3
+
+
+def _ntfy_when(iso: str) -> str:
+    """'2026-10-17T13:41:09+00:00' -> 'Oct 17, 1:41 PM' in the server's own time zone."""
+    try:
+        from datetime import datetime
+        d = datetime.fromisoformat(iso.strip().replace("Z", "+00:00"))
+        d = d.astimezone() if d.tzinfo else d
+        return f"{d.strftime('%b')} {d.day}, {d.hour % 12 or 12}:{d.minute:02d} {'AM' if d.hour < 12 else 'PM'}"
+    except Exception:
+        return iso.strip()
+
+
+_NTFY_ICONS = {"user": "\U0001F464", "ip": "\U0001F310", "target": "\U0001F3AF", "detail": "\U0001F4DD"}
+
+
+def _ntfy_body(body: str) -> str:
+    """The shared 'User: … IP: … Time: …' text, reshaped for a phone notification: one short line per fact, led by
+    an icon, no repeated labels, and a friendly time. Text that isn't in that shape (a test message) passes through."""
+    keep, server, when, known = [], "", "", False
+    for ln in body.splitlines():
+        k, sep, v = ln.partition(": ")
+        kl, v = k.strip().lower(), v.strip()
+        if sep and kl in _NTFY_ICONS:
+            known = True
+            if v and v not in ("\u2014", "-"):
+                keep.append(f"{_NTFY_ICONS[kl]} {v}")
+        elif sep and kl == "time":
+            known, when = True, _ntfy_when(v)
+        elif sep and kl == "server":
+            known, server = True, v
+        elif ln.startswith("(+"):
+            keep.append("\U0001F501 " + ln.strip("() "))
+        elif ln.strip():
+            keep.append(ln.strip())
+    if not known:
+        return body
+    foot = " \u00b7 ".join(x for x in (when, server) if x)
+    if foot:
+        keep.append("\U0001F552 " + foot)
+    return "\n".join(keep)
+
+
 def send_ntfy(server: str, topic: str, token: str, title: str, body: str) -> tuple[bool, str]:
     """Publish to ntfy (https://ntfy.sh, or a server of your own) as JSON, which keeps emoji and any language
     intact in the title. The phone app shows it as a push notification for everyone subscribed to the topic."""
@@ -102,9 +161,9 @@ def send_ntfy(server: str, topic: str, token: str, title: str, body: str) -> tup
         return False, "The ntfy server address should look like https://ntfy.sh (no login, query or extra parts)."
     if not _NTFY_TOPIC_RE.fullmatch(topic):
         return False, "The topic can only contain letters, digits, underscores and hyphens (up to 64 characters)."
-    urgent = title.lstrip().startswith(("\U0001F6A8", "\u26a0"))
-    payload = {"topic": topic, "title": title[:250], "message": body[:_NTFY_MAX],
-               "priority": 4 if urgent else 3, "tags": ["rotating_light"] if urgent else ["bell"]}
+    nice_title, tag, priority = _ntfy_title(title)
+    payload = {"topic": topic, "title": nice_title[:250], "message": _ntfy_body(body)[:_NTFY_MAX],
+               "priority": priority, "tags": [tag]}
     headers = {"Content-Type": "application/json", "User-Agent": "VoidOS"}
     if token:
         headers["Authorization"] = "Bearer " + token
