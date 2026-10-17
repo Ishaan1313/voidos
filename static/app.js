@@ -947,14 +947,26 @@ function _timeAgo(ts){const s=Date.now()/1000-ts;if(s<60)return'just now';if(s<3
   if(s<86400)return`${Math.floor(s/3600)}h ago`;return new Date(ts*1000).toLocaleDateString()}
 function notifRenderList(){
   const list=_notifPanel&&_notifPanel.querySelector('.notif-list');if(!list)return;
-  if(!_notifs.length){list.innerHTML='<div class="notif-empty">No notifications yet</div>';return}
-  list.innerHTML=_notifs.map(n=>`<div class="notif-item ${n.read?'':'unread'} lv-${esc(n.level)}" data-id="${escA(n.id)}" data-link="${escA(n.link||'')}">
+  const un=_notifPanel.querySelector('.notif-count'),rd=_notifPanel.querySelector('[data-act="read"]'),cl=_notifPanel.querySelector('[data-act="clear"]');
+  if(un){un.textContent=_notifUnread;un.hidden=!_notifUnread}
+  if(rd)rd.disabled=!_notifUnread;
+  if(cl)cl.hidden=!_notifs.length;
+  if(!_notifs.length){
+    list.innerHTML=`<div class="notif-empty"><div class="notif-empty-ico">${_bellSvg()}</div>
+      <div class="notif-empty-t">You\u2019re all caught up</div>
+      <div class="notif-empty-s">Transfers, app installs and security alerts will show up here.</div></div>`;return}
+  const midnight=new Date();midnight.setHours(0,0,0,0);const cut=midnight.getTime()/1000;
+  const row=n=>`<div class="notif-item ${n.read?'':'unread'} lv-${esc(n.level)}" data-id="${escA(n.id)}" data-link="${escA(n.link||'')}">
       <span class="notif-ico${(n.data||{}).ongoing?' spin':''}">${(n.data||{}).ongoing?'\u21BB':(_NOTIF_ICON[n.level]||'\u2139')}</span>
-      <div class="notif-main"><div class="notif-title">${esc(n.title)}</div>
+      <div class="notif-main">
+        <div class="notif-row1"><div class="notif-title">${esc(n.title)}</div><span class="notif-time">${_timeAgo(n.ts)}</span></div>
         ${n.body?`<div class="notif-text">${esc(n.body)}</div>`:''}
-        ${(n.data||{}).ongoing?`<div class="as-prog${n.data.progress==null?' indet':''}" style="margin-top:7px"><i style="width:${n.data.progress==null?40:Math.floor(n.data.progress)}%"></i></div>`:''}
-        <div class="notif-time">${_timeAgo(n.ts)}${n.ref?` \u00b7 ref <code>${esc(n.ref)}</code>`:''}</div></div>
-      <button class="notif-del" title="Remove" data-del="${escA(n.id)}">\u00d7</button></div>`).join('');
+        ${(n.data||{}).ongoing?`<div class="as-prog${n.data.progress==null?' indet':''}" style="margin-top:8px"><i style="width:${n.data.progress==null?40:Math.floor(n.data.progress)}%"></i></div>`:''}
+        ${n.ref?`<div class="notif-ref">ref <code>${esc(n.ref)}</code></div>`:''}</div>
+      <button class="notif-del" title="Remove" aria-label="Remove" data-del="${escA(n.id)}">\u00d7</button></div>`;
+  const today=_notifs.filter(n=>n.ts>=cut),earlier=_notifs.filter(n=>n.ts<cut);
+  list.innerHTML=(today.length?`<div class="notif-group">Today</div>${today.map(row).join('')}`:'')+
+    (earlier.length?`<div class="notif-group">${today.length?'Earlier':'Earlier'}</div>${earlier.map(row).join('')}`:'');
 }
 async function notifMarkRead(ids){
   const body=ids?{ids}:{all:true};
@@ -967,9 +979,9 @@ function notifToggle(anchor){
   if(_notifPanel){notifClose();return}
   if(typeof hsClosePop==='function')hsClosePop();
   const p=document.createElement('div');p.className='notif-panel';
-  p.innerHTML=`<div class="notif-head"><span>Notifications</span><div style="display:flex;gap:6px">
-      <button class="btn btn-g btn-sm" data-act="read">Mark all read</button>
-      <button class="btn btn-g btn-sm" data-act="clear">Clear</button></div></div><div class="notif-list"></div>`;
+  p.innerHTML=`<div class="notif-head"><div class="notif-title-wrap"><span>Notifications</span><b class="notif-count" hidden></b></div>
+      <div class="notif-acts"><button class="notif-act" type="button" data-act="read">Mark all read</button>
+      <button class="notif-act notif-act-d" type="button" data-act="clear">Clear all</button></div></div><div class="notif-list"></div>`;
   document.body.appendChild(p);_notifPanel=p;
   const r=anchor.getBoundingClientRect();
   const w=Math.min(380,window.innerWidth-16);p.style.width=w+'px';
@@ -2555,7 +2567,7 @@ function _powerInfo(p){
     else if(pi.undervolt_past){lvl='warn';sentence='The Raspberry Pi has had a power dip since it started. Check its supply and cable before it corrupts something.'}
     const txt=pi.undervolt_now?'Under-voltage now':pi.throttled_now?'Throttled':pi.freq_capped?'Speed capped':pi.undervolt_past?'Dipped earlier':'Power OK';
     const sub=pi.undervolt_now?'Supply too weak':pi.undervolt_past?'Under-voltage since boot':(pi.throttled_past?'Throttled earlier':'No power problems since boot');
-    rows.push({k:'Power',v:txt,sub,lvl:pi.undervolt_now?'bad':(pi.throttled_now||pi.freq_capped||pi.undervolt_past)?'warn':'ok'});
+    rows.push({k:'',v:txt,sub,lvl:pi.undervolt_now?'bad':(pi.throttled_now||pi.freq_capped||pi.undervolt_past)?'warn':'ok'});
   }
   if(b){
     const low=b.plugged===false&&b.percent<=20,crit=b.plugged===false&&b.percent<=10;
@@ -2572,7 +2584,7 @@ function _paintPower(p){
   const info=_powerInfo(p);
   if(!info||!info.rows.length){el.hidden=true;return}
   el.hidden=false;
-  const h=info.rows.map(r=>`<div class="pwr-item" data-level="${r.lvl}"><span class="pwr-k">${esc(r.k)}</span>
+  const h=info.rows.map(r=>`<div class="pwr-item" data-level="${r.lvl}"><i class="pwr-dot" aria-hidden="true"></i>${r.k?`<span class="pwr-k">${esc(r.k)}</span>`:''}
     <b class="pwr-v tnum">${esc(r.v)}</b><span class="pwr-s">${esc(r.sub||'')}</span></div>`).join('');
   if(el._h!==h){el.innerHTML=h;el._h=h}
 }
