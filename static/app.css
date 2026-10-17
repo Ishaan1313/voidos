@@ -1985,3 +1985,6 @@ code,pre,kbd,.path,.toast-ref,.notif-time code,.ip-spoiler-text,.mono{font-famil
 .fs-item:hover .fs-hide,.fs-hide:focus-visible{opacity:1}
 .fs-hide:hover{background:rgba(var(--ov-rgb),.1);color:var(--tx)}
 @media(hover:none){.fs-hide{opacity:.7}}
+
+/* A tile with a status badge (Live, Reconnecting…) keeps room for it below the description instead of the badge sitting on top */
+.tile:has(.tstatus),.dash-apps .tile.card:has(.tstatus),.shell.hs .tile:has(.tstatus),.shell.hs #hsSysGrid .tile:has(.tstatus){padding-bottom:32px}
