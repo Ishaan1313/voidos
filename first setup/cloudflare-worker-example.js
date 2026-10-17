@@ -15,6 +15,11 @@
  *      dashboard: Settings → Variables → add  KEY_NAME = app_<tile id>
  *      (one separate Worker per app; leave unset for the dashboard).
  *
+ * When the tunnel is down (nothing stored, an invalid address, no answer within 2 seconds, a DNS failure, or one of the
+ * "server down" statuses 500/502/503/504/521-524/530/1016) visitors get a friendly offline page that retries by itself
+ * instead of a bare error. Note that 500 is included: a genuine 500 from Void OS shows the offline page too; remove 500
+ * from SERVER_DOWN below if you would rather see Void OS's own error message with its reference code.
+ *
  * Two details matter, or the in-browser Terminal (and any app that uses
  * WebSockets) breaks while everything else seems fine:
  *   - It PROXIES rather than redirects — browsers won't follow a redirect
@@ -23,6 +28,9 @@
  *     `webSocket`; rebuilding the response without it tells the browser
  *     "switching protocols" with no connection behind it.
  */
+// Statuses that mean "the server behind the tunnel is down" (500-504, and Cloudflare's own 52x / 530 / 1016 tunnel errors).
+const SERVER_DOWN = [500, 502, 503, 504, 521, 522, 523, 524, 530, 1016];
+
 export default {
   async fetch(request, env) {
     const key = env.KEY_NAME || "current";
@@ -37,18 +45,30 @@ export default {
     }
 
     const incoming = new URL(request.url);
-    const upstream = new URL(incoming.pathname + incoming.search, target);
+    let upstream;
+    try {
+      upstream = new URL(incoming.pathname + incoming.search, target);
+    } catch (e) {                                   // whatever is stored isn't a web address
+      return offline("The stored address isn't valid — restart Void OS so it stores a fresh one.", 503);
+    }
 
     let response;
     try {
-      // Same method, headers and body; fetch() sets Host from the new URL.
-      response = await fetch(new Request(upstream.toString(), request), { redirect: "manual" });
+      // Same method, headers and body; fetch() sets Host from the new URL. A short connect timeout makes a dead tunnel
+      // show the offline page quickly instead of hanging, and DNS failures land in the catch below.
+      response = await fetch(new Request(upstream.toString(), request), { redirect: "manual", cf: { connectTimeout: 2000 } });
     } catch (e) {
-      return offline("Void OS isn't reachable right now — it may be restarting.", 502);
+      return offline("Void OS isn't reachable right now — it may be restarting.", 503);
     }
 
     if (response.status === 101) {
       return new Response(null, { status: 101, webSocket: response.webSocket });
+    }
+
+    // When the tunnel itself is down, Cloudflare answers on its behalf with one of these errors (or Void OS answers 500/502/
+    // 503/504 while it is restarting). Show the friendly offline page instead of a bare error.
+    if (SERVER_DOWN.includes(response.status)) {
+      return offline("Void OS isn't reachable right now — it may be restarting.", 503);
     }
 
     // Rewrite redirects that point at the tunnel back to this Worker's own
